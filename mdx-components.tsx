@@ -51,7 +51,8 @@ export const customMDXComponents: MDXComponents = {
       >
         <a
           href={`#${id}`}
-          className="inline-flex items-center gap-2 transition-colors hover:text-primary"
+          aria-label={`Tautan langsung ke ${text}`}
+          className="rounded-xs focus-visible:outline-hidden inline-flex items-center gap-2 transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span>{children}</span>
           <span
@@ -74,7 +75,8 @@ export const customMDXComponents: MDXComponents = {
       >
         <a
           href={`#${id}`}
-          className="inline-flex items-center gap-2 transition-colors hover:text-primary"
+          aria-label={`Tautan langsung ke ${text}`}
+          className="rounded-xs focus-visible:outline-hidden inline-flex items-center gap-2 transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span>{children}</span>
           <span
@@ -85,6 +87,20 @@ export const customMDXComponents: MDXComponents = {
           </span>
         </a>
       </h3>
+    )
+  },
+  a: ({ href = '', children, ...props }) => {
+    const isExternal =
+      typeof href === 'string' && (href.startsWith('http') || href.startsWith('//'))
+    return (
+      <a
+        href={href}
+        {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+        className="focus-visible:outline-hidden rounded-xs font-medium text-primary underline underline-offset-4 transition-colors hover:text-primary/80 focus-visible:ring-2 focus-visible:ring-primary"
+        {...props}
+      >
+        {children}
+      </a>
     )
   },
   pre: ({ children }) => {

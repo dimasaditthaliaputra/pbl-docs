@@ -56,9 +56,9 @@ export function Toc({ toc }: TocProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <nav aria-label="Daftar isi halaman" className="space-y-3">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground">
-        <AlignLeft className="h-3.5 w-3.5 text-primary" />
+        <AlignLeft className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
         <span>Pada Halaman Ini</span>
       </div>
       <ul className="space-y-1.5 text-sm">
@@ -79,7 +79,7 @@ export function Toc({ toc }: TocProps) {
           </li>
         ))}
       </ul>
-    </div>
+    </nav>
   )
 }
 

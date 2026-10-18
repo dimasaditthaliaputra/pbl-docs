@@ -28,7 +28,7 @@ export function Sidebar() {
                       href={href}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors',
+                        'focus-visible:outline-hidden flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-primary',
                         isActive
                           ? 'bg-primary/10 font-semibold text-primary'
                           : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
