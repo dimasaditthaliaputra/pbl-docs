@@ -24,9 +24,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Halaman Tidak Ditemukan' }
   }
 
+  const title = doc.frontmatter.title
+  const description = doc.frontmatter.description || 'Dokumentasi teknis proyek PAGORA.'
+  const url = `https://pagora-docs.vercel.app/docs/${slug}`
+
   return {
-    title: doc.frontmatter.title,
-    description: doc.frontmatter.description,
+    title,
+    description,
+    openGraph: {
+      type: 'article',
+      locale: 'id_ID',
+      url,
+      siteName: 'PAGORA Docs',
+      title: `${title} | PAGORA Docs`,
+      description,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${title} | PAGORA Docs`,
+      description,
+    },
   }
 }
 
