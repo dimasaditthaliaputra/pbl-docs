@@ -7,6 +7,7 @@ import { FileTree } from '@/src/components/mdx/FileTree'
 import { Steps, Step } from '@/src/components/mdx/Steps'
 import { Tabs, Tab } from '@/src/components/mdx/Tabs'
 import { Diagram } from '@/src/components/mdx/Diagram'
+import { Checklist } from '@/src/components/mdx/Checklist'
 
 function extractText(node: React.ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') {
@@ -34,6 +35,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     Tabs,
     Tab,
     Diagram,
+    Checklist,
 
     // Typography & Element overrides
     h1: ({ children }) => (
