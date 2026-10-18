@@ -3,7 +3,7 @@ import createMDX from '@next/mdx'
 
 const withMDX = createMDX({
   options: {
-    remarkPlugins: ['remark-gfm'],
+    remarkPlugins: ['remark-frontmatter', 'remark-gfm'],
     rehypePlugins: [],
   },
 })
