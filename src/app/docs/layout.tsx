@@ -7,9 +7,9 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-screen flex-col bg-background">
       <Header showMobileNav={true} />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-1 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 px-4 sm:px-6 lg:px-8">
         <Sidebar />
-        <main className="min-w-0 flex-1 py-8 lg:pl-8">{children}</main>
+        <main className="min-w-0 flex-1 py-8 lg:pl-8 xl:pl-10">{children}</main>
       </div>
 
       <Footer />

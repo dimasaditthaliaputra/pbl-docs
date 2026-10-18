@@ -56,7 +56,7 @@ export default async function DocPage({ params }: PageProps) {
   ]
 
   return (
-    <div className="flex gap-10">
+    <div className="flex gap-8 xl:gap-10 2xl:gap-14">
       <article className="min-w-0 flex-1">
         <Breadcrumb items={breadcrumbItems} />
 
@@ -94,7 +94,7 @@ export default async function DocPage({ params }: PageProps) {
 
       {/* Desktop TOC sticky on the right for screen >= xl */}
       {toc.length > 0 && (
-        <aside className="hidden w-64 shrink-0 xl:block">
+        <aside className="hidden w-56 shrink-0 xl:block 2xl:w-60">
           <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
             <Toc toc={toc} />
           </div>
