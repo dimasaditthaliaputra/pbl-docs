@@ -9,6 +9,18 @@ group: Pengantar
 
 **PAGORA** adalah sistem pengadaan (_procurement_) berbasis web yang dibangun dengan arsitektur **monolith**: Laravel dan React berjalan dalam **satu project** (bukan repo terpisah), dijembatani oleh Inertia.js.
 
+<Callout type="info" title="Arsitektur Monolith">
+  PAGORA bukan aplikasi terpisah antara API backend dan Single Page Application (SPA). Controller
+  Laravel langsung menyajikan halaman React menggunakan <code>Inertia::render()</code> tanpa perlu
+  membuat endpoint REST API manual untuk halaman biasa.
+</Callout>
+
+<Diagram
+  type="architecture"
+  title="Arsitektur Monolith PAGORA"
+  caption="Struktur monolith PAGORA: Laravel dan React berjalan dalam satu repositori dengan jembatan Inertia.js"
+/>
+
 ## Stack Teknologi
 
 | Item                   | Keterangan                                                                                                  |
@@ -23,6 +35,32 @@ group: Pengantar
 | **Arsitektur backend** | MVC + Service Repository Pattern                                                                            |
 | **Modul referensi**    | `Komoditas` (CRUD lengkap, dipakai sebagai contoh pola)                                                     |
 | **Bahasa**             | Pesan error/validasi: **Bahasa Indonesia**. Nama class, method, variabel, komentar kode: **Bahasa Inggris** |
+
+## Karakteristik Stack
+
+<Tabs items={['Backend', 'Frontend', 'Database']}>
+  <Tab value="Backend">
+    <p>
+      Backend dibangun dengan <strong>Laravel (PHP)</strong> menggunakan arsitektur MVC + Service
+      Repository Pattern. Autentikasi email ditangani oleh Laravel Fortify, sedangkan Google OAuth
+      ditangani oleh Laravel Socialite.
+    </p>
+  </Tab>
+  <Tab value="Frontend">
+    <p>
+      Frontend menggunakan <strong>React + Vite</strong> dengan ekstensi <code>.jsx</code>. Komponen
+      UI mengadopsi <strong>shadcn/ui</strong> dan <strong>Tailwind CSS</strong>, serta TanStack
+      Table untuk manipulasi tabel server-side.
+    </p>
+  </Tab>
+  <Tab value="Database">
+    <p>
+      Penyimpanan data utama menggunakan <strong>PostgreSQL</strong>. Seluruh entitas CRUD
+      menggunakan <strong>UUID</strong> sebagai identifier publik untuk mencegah eksploitasi IDOR
+      dan enumerasi data.
+    </p>
+  </Tab>
+</Tabs>
 
 ## Bagaimana Inertia.js Bekerja?
 

@@ -7,12 +7,158 @@ group: Backend
 
 ## Gambaran Umum
 
-Halaman ini menguraikan arsitektur backend PAGORA yang menerapkan kombinasi MVC dan Service Repository Pattern.
+Backend PAGORA mengombinasikan pola **Model-View-Controller (MVC)** dengan **Service Repository Pattern**. Arsitektur ini bertujuan menjaga Controller tetap tipis (_thin controller_), memusatkan logika bisnis di Service, dan memisahkan akses database di Repository.
 
-## Alur Request
+<Diagram
+  type="request-flow"
+  title="Alur Request Backend PAGORA"
+  caption="Alur lengkap eksekusi request mulai dari Browser, Route, Form Request, Controller, Service, Repository Interface, hingga Database"
+/>
 
-Alur request mengalir dari Route menuju Controller, Service, Repository Interface, hingga Model dan Database.
+## Tanggung Jawab Tiap Layer
 
-## Tanggung Jawab Layer
+| Layer            | Boleh                                                                                       | Dilarang                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| **Route**        | Memetakan URL ke method controller, memasang middleware, memberi `name()`                   | `return view()`, `Inertia::render()`, closure berisi logika        |
+| **Controller**   | Menerima request, memanggil Service, return via `ResponseHelper` / `Inertia::render`        | Query Eloquent, logika bisnis, validasi inline                     |
+| **Form Request** | Aturan validasi, pesan error Bahasa Indonesia (`messages()`), otorisasi                     | Logika bisnis                                                      |
+| **Service**      | Logika bisnis, orkestrasi beberapa repository, transaksi `DB::transaction()`, simpan berkas | Mengakses `Request`, return response HTTP, query Eloquent langsung |
+| **Repository**   | Akses data (query Eloquent), eager loading (`with()`), paginate                             | Logika bisnis, return response HTTP                                |
+| **Model**        | Relasi, `casts()`, `$fillable`, `$hidden = ['id']`, scope, accessor                         | Logika bisnis kompleks                                             |
 
-Masing-masing layer memiliki tugas terpisah: Controller tipis, Service menangani transaksi dan logika bisnis, dan Repository menangani akses data.
+<Callout type="danger" title="Larangan Keras pada Layer Controller & Service">
+  <ul>
+    <li>
+      Dilarang menuliskan query Eloquent langsung di Controller. Seluruh akses database wajib
+      melalui Repository Interface.
+    </li>
+    <li>
+      Dilarang mengembalikan response HTTP atau objek <code>Request</code> dari dalam Service.
+      Service hanya mengembalikan Model, koleksi, atau melempar Exception.
+    </li>
+  </ul>
+</Callout>
+
+## Pola Kode Contoh
+
+Berikut adalah template pola standar yang diadopsi dari modul referensi `Komoditas`.
+
+<Tabs items={['Repository Interface', 'Service', 'Controller']}>
+  <Tab value="Repository Interface">
+    <CodeBlock
+      filename="app/Repositories/Contracts/KomoditasRepositoryInterface.php"
+      language="php"
+      illustration={true}
+      code={`<?php
+
+declare(strict_types=1);
+
+namespace App\\Repositories\\Contracts;
+
+use App\\Models\\Komoditas;
+use Illuminate\\Pagination\\LengthAwarePaginator;
+
+interface KomoditasRepositoryInterface
+{
+public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator;
+
+    public function findByUuid(string $uuid): ?Komoditas;
+
+    public function create(array $data): Komoditas;
+
+    public function update(Komoditas $komoditas, array $data): Komoditas;
+
+    public function delete(Komoditas $komoditas): void;
+
+}`}
+/>
+
+  </Tab>
+
+  <Tab value="Service">
+    <CodeBlock
+      filename="app/Services/KomoditasService.php"
+      language="php"
+      illustration={true}
+      code={`<?php
+
+declare(strict_types=1);
+
+namespace App\\Services;
+
+use App\\Models\\Komoditas;
+use App\\Repositories\\Contracts\\KomoditasRepositoryInterface;
+use Illuminate\\Database\\Eloquent\\ModelNotFoundException;
+
+class KomoditasService
+{
+public function \_\_construct(
+private readonly KomoditasRepositoryInterface $komoditas
+) {}
+
+    public function findByUuid(string $uuid): Komoditas
+    {
+        return $this->komoditas->findByUuid($uuid)
+            ?? throw new ModelNotFoundException('Data tidak ditemukan.');
+    }
+
+    // Operasi multi-tabel dibungkus DB::transaction() di layer Service
+
+}`}
+/>
+
+  </Tab>
+
+  <Tab value="Controller">
+    <CodeBlock
+      filename="app/Http/Controllers/KomoditasController.php"
+      language="php"
+      illustration={true}
+      code={`<?php
+
+declare(strict_types=1);
+
+namespace App\\Http\\Controllers;
+
+use App\\Helpers\\ResponseHelper;
+use App\\Http\\Resources\\KomoditasResource;
+use App\\Services\\KomoditasService;
+use Illuminate\\Database\\Eloquent\\ModelNotFoundException;
+use Inertia\\Inertia;
+use Inertia\\Response;
+use Throwable;
+
+class KomoditasController extends Controller
+{
+public function \_\_construct(
+private readonly KomoditasService $komoditasService
+) {}
+
+    public function show(string $uuid): Response
+    {
+        try {
+            $komoditas = $this->komoditasService->findByUuid($uuid);
+
+            return Inertia::render('Master/Komoditas/Show', [
+                'komoditas' => new KomoditasResource($komoditas),
+            ]);
+        } catch (ModelNotFoundException) {
+            return ResponseHelper::notFound('Data tidak ditemukan.');
+        } catch (Throwable $e) {
+            return ResponseHelper::serverError($e);
+        }
+    }
+
+}`}
+/>
+
+  </Tab>
+</Tabs>
+
+## Identifier Publik: UUID (Wajib)
+
+Untuk mencegah enumerasi data dan kerentanan IDOR (_Insecure Direct Object Reference_):
+
+- Kolom `id` auto-increment hanya dipakai internal backend untuk relasi dan _foreign key_.
+- Tidak boleh mengekspos `id` internal ke URL, JSON, form, atribut HTML, atau props Inertia.
+- Seluruh rute menggunakan parameter `{uuid}` dengan constraint `whereUuid('uuid')`.
