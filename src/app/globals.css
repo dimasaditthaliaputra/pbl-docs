@@ -79,7 +79,7 @@
   }
 }
 
-/* rehype-pretty-code code block styling */
+/* rehype-pretty-code & shiki dual theme code block styling */
 [data-rehype-pretty-code-figure] {
   @apply my-6 overflow-hidden rounded-lg border border-border;
 }
@@ -99,3 +99,14 @@
 [data-highlighted-line] {
   @apply bg-primary/10;
 }
+
+/* Shiki dual-theme dark mode styles */
+html.dark .shiki,
+html.dark .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
