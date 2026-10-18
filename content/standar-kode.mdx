@@ -7,12 +7,169 @@ group: Frontend
 
 ## Gambaran Umum
 
-Halaman ini menguraikan standar penulisan kode untuk PHP, React, dan praktik keamanan di lingkungan proyek PAGORA.
+Untuk menjaga keterbacaan, kemudahan pemeliharaan (_maintainability_), dan ketahanan sistem, seluruh anggota tim dan AI agent yang bekerja pada PAGORA wajib mematuhi standar penulisan kode berikut. Standar ini mencakup konvensi bahasa PHP, React, prinsip rekayasa umum, dan panduan keamanan sistem.
 
-## Standar Kode PHP
+## 1. Standar Penulisan PHP
 
-Penerapan PSR-12, deklarasi strict types, type hinting pada method dan return types.
+Pengembangan backend Laravel mengikuti standar **PSR-12** secara ketat:
 
-## Keamanan Aplikasi
+- **Strict Types:** Setiap berkas PHP baru wajib menyertakan deklarasi `declare(strict_types=1);` di baris pertama setelah tag pembuka PHP.
+- **Type Hinting Eksplisit:** Seluruh parameter method dan tipe kembalian (_return type_) wajib memiliki pengetikan tipe data yang jelas (termasuk `void`, `string`, `int`, `array`, atau class spesifik).
+- **Constructor Promotion:** Gunakan constructor promotion dengan kata kunci `readonly` untuk setiap dependency yang di-inject.
+- **Konvensi Penamaan:**
+  - Class dan Interface: `PascalCase` (contoh: `KomoditasService`, `KomoditasRepositoryInterface`)
+  - Method dan Variabel: `camelCase` (contoh: `findByUuid`, `$komoditasService`)
+  - Konstanta: `UPPER_SNAKE_CASE` (contoh: `private const SORTABLE = [...]`)
+  - Route Name: Notasi titik `dot.notation` (contoh: `komoditas.index`, `komoditas.store`)
+- **PHPDoc Minimalis:** Jangan menulis PHPDoc yang hanya mengulang tipe data parameter yang sudah jelas dari signature method. Gunakan PHPDoc hanya jika tipe array bersifat kompleks (contoh: `/** @param array<string, mixed> $filters */`).
+- **Pola Early Return:** Utamakan pola _early return_ dan guard clause untuk membatalkan proses lebih awal, daripada menuliskan percabangan `if/else` bersarang (_deeply nested_).
+- **Pemisahan Tanggung Jawab:**
+  - Tidak ada logika bisnis atau transaksi di Controller.
+  - Tidak ada query Eloquent di luar layer Repository.
+  - Tidak ada kode status HTTP yang ditulis langsung (_hardcoded_) di controller di luar pemanggilan `ResponseHelper`.
 
-Pencegahan eksploitasi IDOR menggunakan UUID publik, otorisasi berbasis Policy, dan sanitasi input.
+<CodeBlock
+  filename="Contoh Pola Penulisan PHP Sesuai Standar"
+  language="php"
+  illustration={true}
+  code={`<?php
+
+declare(strict_types=1);
+
+namespace App\\Services;
+
+use App\\Models\\Komoditas;
+use App\\Repositories\\Contracts\\KomoditasRepositoryInterface;
+use Illuminate\\Database\\Eloquent\\ModelNotFoundException;
+
+class KomoditasService
+{
+// Constructor promotion dengan readonly property
+public function \_\_construct(
+private readonly KomoditasRepositoryInterface $komoditas
+) {}
+
+    public function findByUuid(string $uuid): Komoditas
+    {
+        // Early return / guard throw
+        return $this->komoditas->findByUuid($uuid)
+            ?? throw new ModelNotFoundException('Data komoditas tidak ditemukan.');
+    }
+
+}`}
+/>
+
+## 2. Standar Penulisan React
+
+Frontend React beroperasi dalam ekosistem Inertia.js dengan standar penulisan berikut:
+
+- **Konvensi Penamaan Komponen:** Komponen menggunakan `PascalCase` (contoh: `KomoditasForm.jsx`, `DashboardLayout.jsx`).
+- **Functional Components:** Seluruh komponen wajib berupa _functional component_ yang memanfaatkan React Hooks. Dilarang menggunakan class component.
+- **Hook Resmi Inertia:** Gunakan hook resmi yang disediakan oleh `@inertiajs/react`:
+  - `useForm` untuk seluruh interaksi form input dan pengiriman data.
+  - `router` untuk navigasi programatis atau reload data tabel.
+  - `usePage` untuk mengakses props global yang dibagikan backend (misal data auth pengguna atau flash message).
+- **Komponen Reusable:** Pecah halaman kompleks menjadi komponen yang lebih kecil. Komponen yang berpotensi dipakai ulang wajib diletakkan di direktori `resources/js/Components/`.
+- **Styling Utility:** Hindari penggunaan CSS kustom atau tag `<style>`. Seluruh penataan antarmuka menggunakan Tailwind CSS dengan penggabungan class via `cn()`.
+
+<CodeBlock
+  filename="Contoh Pola Penulisan Komponen React"
+  language="jsx"
+  illustration={true}
+  code={`import { useForm } from '@inertiajs/react';
+import { Button } from '@/Components/ui/button';
+import { Input } from '@/Components/ui/input';
+import { Label } from '@/Components/ui/label';
+import { LoadingButton } from '@/Components/loading-button';
+import { cn } from '@/lib/utils';
+
+export default function KomoditasForm({ initialData = null }) {
+  const { data, setData, post, put, processing, errors, clearErrors } = useForm({
+    name: initialData?.name || '',
+  });
+
+const handleSubmit = (e) => {
+e.preventDefault();
+if (initialData) {
+put(route('komoditas.update', initialData.uuid));
+} else {
+post(route('komoditas.store'));
+}
+};
+
+return (
+
+<form onSubmit={handleSubmit} noValidate className="space-y-4">
+<div className="space-y-2">
+<Label htmlFor="name">Nama Komoditas \*</Label>
+<Input
+id="name"
+value={data.name}
+onChange={(e) => {
+setData('name', e.target.value);
+clearErrors('name');
+}}
+aria-invalid={!!errors.name}
+className={cn(errors.name && 'border-destructive')}
+/>
+{errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+</div>
+
+      <LoadingButton type="submit" loading={processing}>
+        Simpan
+      </LoadingButton>
+    </form>
+
+);
+}`}
+/>
+
+## 3. Prinsip Rekayasa Umum
+
+- **Komentar Menjelaskan Alasan ("Kenapa", Bukan "Apa"):** Jangan menulis komentar yang hanya mendeskripsikan ulang baris kode yang sudah jelas. Tulis komentar hanya untuk menjelaskan latar belakang keputusan teknis atau _edge case_ yang tidak biasa.
+- **Single Responsibility Principle (SRP):** Satu fungsi atau method hanya boleh memiliki satu tanggung jawab utama yang jelas.
+- **DRY (Don't Repeat Yourself) yang Seimbang:** Hindari duplikasi logika yang identik, namun jangan membuat abstraksi yang prematur untuk dua kode yang hanya serupa secara kebetulan.
+- **Integritas Scope Tugas:** Jangan mengubah format, penataan berkas, atau gaya kode di luar lingkup fitur yang sedang Anda kerjakan.
+
+## 4. Standar Keamanan Sistem
+
+Keamanan adalah aspek vital pada sistem pengadaan PAGORA. Seluruh alur data wajib mematuhi protokol berikut:
+
+<Tabs items={['Pencegahan IDOR', 'Validasi Input', 'Mass Assignment', 'Manajemen Secret', 'Proteksi Error']}>
+  <Tab value="Pencegahan IDOR">
+    <p>
+      Kolom <code>id</code> internal auto-increment tidak boleh diekspos ke publik. Seluruh URL, parameter rute, props JSON, atribut HTML, dan field form wajib menggunakan <strong>UUID</strong> atau <strong>slug</strong>.
+    </p>
+    <Callout type="danger" title="UUID Bukan Pengganti Otorisasi">
+      Meskipun UUID acak dan sulit ditebak, UUID <strong>bukan pengganti otorisasi</strong>. Seluruh method aksi tetap wajib melakukan verifikasi izin melalui Policy, Gate, atau pemeriksaan kepemilikan data sebelum memproses operasi.
+    </Callout>
+  </Tab>
+
+<Tab value="Validasi Input">
+  <p>
+    Jangan pernah mempercayai data yang dikirimkan oleh peramban pengguna. Seluruh data masuk wajib
+    divalidasi melalui <strong>Form Request</strong> di layer backend. Validasi frontend hanya
+    berperan sebagai pembantu feedback cepat bagi pengguna.
+  </p>
+</Tab>
+
+  <Tab value="Mass Assignment">
+    <p>
+      Dilarang menggunakan sintaks <code>Model::create($request->all())</code>. Selalu definisikan properti <code>$fillable</code> secara eksplisit pada Model, atau ambil hanya field yang telah tervalidasi via <code>$request->validated()</code>.
+    </p>
+  </Tab>
+
+<Tab value="Manajemen Secret">
+  <p>
+    Informasi rahasia (kredensial database, API key Google, password) hanya boleh disimpan di dalam
+    berkas <code>.env</code> dan diakses melalui fungsi <code>config()</code>. Dilarang meng-commit
+    berkas <code>.env</code> ke dalam repository Git.
+  </p>
+</Tab>
+
+  <Tab value="Proteksi Error">
+    <p>
+      Dilarang membocorkan detail internal server kepada pengguna (seperti stack trace exception, query SQL, atau path absolut server). Jika terjadi kegagalan sistem, catat error ke file log via <code>Log::error(...)</code> dan tampilkan pesan kesalahan umum yang ramah.
+    </p>
+  </Tab>
+</Tabs>
