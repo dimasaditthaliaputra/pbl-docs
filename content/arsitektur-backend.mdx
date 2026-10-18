@@ -37,6 +37,17 @@ Setiap layer memiliki batasan dan tanggung jawab yang tegas:
 | **Service**      | Logika bisnis, orkestrasi beberapa repository, `DB::transaction()`, melempar exception | Mengakses objek `Request`, return response HTTP, query Eloquent langsung |
 | **Repository**   | Akses data (query Eloquent), eager loading (`with()`), paginate, filter                | Logika bisnis, return response HTTP                                      |
 | **Model**        | Relasi, `casts()`, `$fillable`, `$hidden = ['id']`, scope query, accessor              | Logika bisnis kompleks atau manipulasi data multi-tabel                  |
+| **Helper**       | Utilitas teknis global (standardisasi format response, manipulasi string, kalkulasi)   | Logika bisnis domain, query database, mengubah state aplikasi            |
+
+### Peran Masing-Masing Layer & Folder
+
+1. **Route (`routes/web.php`)**: Memetakan URL dan metode HTTP ke method controller yang sesuai serta memasang middleware otentikasi.
+2. **Form Request (`app/Http/Requests/`)**: Memvalidasi seluruh payload input sebelum diizinkan menyentuh controller.
+3. **Controller (`app/Http/Controllers/`)**: Pintu gerbang HTTP penerima request. Bertindak hanya sebagai koordinator tipis (_thin controller_).
+4. **Service (`app/Services/`)**: Pusat logika bisnis dan orkestrasi transaksi. Tempat seluruh aturan dan proses bisnis dieksekusi.
+5. **Repository (`app/Repositories/`)**: Layer pemisah kueri database. Mengabstraksikan kueri Eloquent agar logika bisnis tidak terikat pada database langsung.
+6. **Model (`app/Models/`)**: Representasi entitas tabel PostgreSQL (Eloquent ORM) beserta definisi relasi dan mutator.
+7. **Helper (`app/Helpers/`)**: Kumpulan fungsi utilitas teknis pembantu yang digunakan bersama oleh berbagai layer backend.
 
 <Callout type="danger" title="Larangan Keras pada Layer Controller & Service">
   <ul>

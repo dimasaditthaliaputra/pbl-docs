@@ -79,21 +79,47 @@ Struktur folder backend memisahkan tugas sesuai prinsip _Separation of Concerns_
     └── VendorRegistrationService.php`}
 </FileTree>
 
-### Penjelasan Folder Backend
+### Penjelasan Kegunaan Folder Backend
 
-- **`Helpers/`**: Berisi `ResponseHelper.php` yang mengatur keseragaman struktur JSON response untuk endpoint API maupun _flash response_ untuk Inertia.
-- **`Http/Controllers/`**: Controller dibuat sangat tipis. Tidak boleh berisi query Eloquent langsung atau logika bisnis bercabang.
-- **`Http/Requests/`**: Mengisolasi aturan validasi input form dan pesan error berbahasa Indonesia per domain fitur.
-- **`Http/Resources/`**: Berfungsi mentransformasikan data sebelum diserahkan ke frontend. Menjamin kolom internal `id` tidak pernah diekspos ke publik.
-- **`Models/`**: Definisi entitas tabel PostgreSQL, relasi antar-tabel, mutator/accessor, dan konfigurasi UUID.
-- **`Repositories/`**: Memisahkan antarmuka (`Contracts/`) dari implementasi konkret (`Eloquent/`). Menjamin controller dan service tidak terikat langsung pada detail query database.
-- **`Services/`**: Rumah utama untuk seluruh logika bisnis dan operasi transaksi database (`DB::transaction()`).
+Setiap direktori di `app/` memiliki peran arsitektural spesifik untuk memastikan kode tetap modular, terisolasi, dan mudah dipelihara:
+
+- **`Helpers/`**:
+  - **Kegunaan:** Direktori untuk fungsi pembantu (_helper_) dan kelas utilitas global yang bersifat agnostik domain. Digunakan untuk menampung fungsi pendukung teknis yang dipanggil berulang kali di berbagai layer aplikasi (seperti standardisasi respon JSON/Inertia pada `ResponseHelper.php`, manipulasi string, pemformatan tanggal, atau kalkulasi umum).
+  - **Batasan:** Helper hanya menangani fungsi utilitas teknis murni; dilarang menuliskan alur logika bisnis domain maupun kueri database langsung di dalam helper.
+
+- **`Http/Controllers/`**:
+  - **Kegunaan:** Direktori untuk layer pengendali HTTP (_Presentation Layer_). Berperan sebagai pintu gerbang masuk permintaan pengguna/klien, menerima request, mendelegasikannya ke layer Service, lalu mengembalikan respon tampilan (Inertia) atau JSON terstandar.
+  - **Batasan:** Berprinsip _Thin Controller_. Dilarang keras memuat query Eloquent langsung, logika bisnis bercabang, maupun validasi input manual.
+
+- **`Http/Requests/`**:
+  - **Kegunaan:** Direktori untuk layer validasi dan otorisasi input (_Form Request Layer_). Berperan memeriksa kepatuhan data masukan terhadap aturan sistem sebelum diizinkan menyentuh Controller.
+  - **Batasan:** Mengisolasi aturan validasi (`rules()`) dan pesan galat berbahasa Indonesia (`messages()`). Dilarang menjalankan operasi transaksi atau kueri mutasi data di dalam Form Request.
+
+- **`Http/Resources/`**:
+  - **Kegunaan:** Direktori untuk layer transformasi dan serialisasi data (_API Resource / Presenter Layer_). Berperan menyaring dan menyusun ulang struktur atribut Model Eloquent menjadi format keluaran yang aman dan konsisten sebelum dikirim ke frontend.
+  - **Batasan:** Berfungsi sebagai pelindung keamanan data dengan daftar field eksplisit (_whitelist_). Menjamin field sensitif atau internal (seperti ID auto-increment database) tidak pernah terekspos ke klien.
+
+- **`Models/`**:
+  - **Kegunaan:** Direktori untuk layer representasi entitas data dan Object-Relational Mapping (ORM) Eloquent. Berperan memetakan tabel PostgreSQL ke objek PHP, mendefinisikan relasi antar-tabel (_relationships_), konversi tipe data (`casts`), mutator/accessor, dan scope pencarian.
+  - **Batasan:** Menangani struktur dan relasi data murni; dilarang memuat alur transaksi bisnis multi-tabel yang rumit.
+
+- **`Providers/`**:
+  - **Kegunaan:** Direktori untuk _Service Providers_ yang mengatur _bootstrapping_ aplikasi dan konfigurasi _Dependency Injection_ (DI Container) Laravel.
+  - **Peran:** Mendaftarkan pengikatan (_binding_) antara interface abstrak dengan class implementasi konkretnya (misalnya mendaftarkan `RepositoryServiceProvider` yang mengaitkan `Contracts/` ke `Eloquent/`).
+
+- **`Repositories/`**:
+  - **Kegunaan:** Direktori untuk layer abstraksi akses data (_Data Access Layer_). Berperan mengisolasi seluruh interaksi langsung dengan database (kueri Eloquent, filter, sorting, paginasi, operasi CRUD) agar terpisah sepenuhnya dari aturan bisnis.
+  - **Struktur:** Terbagi menjadi `Contracts/` (antarmuka/interface yang mendefinisikan kontrak fungsi kueri) dan `Eloquent/` (class konkret yang menjalankan query ke PostgreSQL).
+  - **Batasan:** Hanya bertugas mengambil dan menyimpan data; tidak boleh memuat aturan validasi bisnis atau mengembalikan respon HTTP.
+
+- **`Services/`**:
+  - **Kegunaan:** Direktori untuk layer logika bisnis utama (_Domain / Business Logic Layer_). Berperan sebagai pusat eksekusi proses bisnis aplikasi, mengoordinasikan interaksi beberapa repository, menjaga integritas transaksi database (`DB::transaction()`), melempar domain exception, dan menangani manipulasi berkas (unggah/hapus dokumen).
+  - **Batasan:** Service murni memproses alur bisnis; dilarang mengakses objek HTTP `Request` langsung atau mengembalikan respon HTTP.
 
 <Callout type="info" title="Catatan Http/Resources/">
-  Folder <code>Http/Resources/</code> saat ini baru memuat <code>KomoditasResource.php</code>.
-  Sesuai standar kode proyek, data yang dikirim ke frontend wajib melalui API Resource dengan field
-  eksplisit. Setiap modul baru wajib membuat Resource-nya sendiri (contoh:{' '}
-  <code>VendorResource.php</code>).
+  Sesuai standar kode proyek, seluruh data yang dikirim ke frontend wajib melalui API Resource
+  dengan penyusunan field eksplisit. Setiap modul baru wajib membuat kelas Resource-nya sendiri
+  (misalnya <code>VendorResource.php</code>) untuk menjamin proteksi data internal.
 </Callout>
 
 ## 2. Frontend (`resources/js/`)
@@ -103,17 +129,16 @@ Struktur folder frontend menampung seluruh berkas logika tampilan, komponen anta
 <FileTree>
   {`resources/js/
 ├── app.jsx                       # Entry point: inisialisasi Inertia & progress bar
-├── Layouts/
-│   └── DashboardLayout.jsx       # Shell dashboard (Sidebar, Header, FlashHandler)
+├── Layouts/                      # Shell layout bersama (DashboardLayout.jsx, dll.)
 ├── Pages/                        # Halaman yang di-render oleh Inertia::render()
 │   ├── Home.jsx                  # Halaman landing page publik
 │   ├── Dashboard.jsx             # Beranda dashboard pengguna
-│   ├── Auth/                     # Autentikasi dan registrasi
-│   │   ├── Login.jsx             # Halaman login email / Google
-│   │   ├── Register.jsx          # Halaman registrasi standar
-│   │   └── RegisterVendor.jsx    # Halaman pendaftaran khusus vendor
-│   └── Master/                   # Manajemen data master
-│       └── Komoditas/            # Modul referensi CRUD Komoditas
+│   ├── Auth/                     # Halaman autentikasi dan registrasi
+│   │   ├── Login.jsx
+│   │   ├── Register.jsx
+│   │   └── RegisterVendor.jsx
+│   └── Master/                   # Modul data master (Komoditas, Vendor, dll.)
+│       └── Komoditas/
 │           ├── Index.jsx         # Halaman tabel data TanStack
 │           ├── Create.jsx        # Halaman form tambah
 │           ├── Edit.jsx          # Halaman form edit
@@ -138,7 +163,29 @@ Struktur folder frontend menampung seluruh berkas logika tampilan, komponen anta
     └── sound.js                  # Pemutar berkas audio (success.mp3 & failure.mp3)`}
 </FileTree>
 
+### Penjelasan Kegunaan Folder Frontend
+
+Seluruh kode antarmuka diorganisasikan ke dalam folder-folder dengan tanggung jawab yang terdefinisi jelas:
+
+- **`Layouts/`**:
+  - **Kegunaan:** Direktori untuk template pembungkus halaman bersama (_shell layout_).
+  - **Peran:** Menyediakan kerangka umum antarmuka pengguna seperti navigasi sidebar (`AppSidebar.jsx`), navbar atas (`Navbar.jsx`), breadcrumb, dan wadah pesan flash global (`FlashHandler.jsx`). Menjaga konsistensi tampilan antarhalaman tanpa menduplikasi kerangka tata letak.
+
+- **`Pages/`**:
+  - **Kegunaan:** Direktori untuk komponen halaman penuh yang dipanggil dan di-render oleh Inertia (`Inertia::render()`).
+  - **Peran:** Bertindak sebagai penerima props data dari Controller dan mengorkestrasi komponen-komponen antarmuka menjadi satu tampilan utuh (misalnya halaman daftar data, formulir pembuatan, halaman ubah, atau dasbor). Dikelompokkan rapi per domain fitur (seperti `Auth/`, `Master/`, dll.).
+
+- **`Components/`**:
+  - **Kegunaan:** Direktori untuk seluruh komponen UI yang dapat digunakan kembali (_reusable components_) di berbagai halaman.
+  - **Peran:** Menghindari duplikasi markup dan interaksi antarmuka. Terdiri dari komponen UI atomik dasar (di folder `ui/` seperti Button, Dialog, Input, Card), komponen fitur komposit (seperti `data-table/`, `combobox.jsx`, `file-dropzone.jsx`, `loading-button.jsx`), dan komponen navigasi dashboard (`AppSidebar.jsx`, `Navbar.jsx`).
+
+- **`lib/`**:
+  - **Kegunaan:** Direktori untuk pustaka pembantu (_helper functions_), utilitas klien, dan modul integrasi umum.
+  - **Peran:** Menyediakan fungsi-fungsi pembantu yang dipanggil oleh berbagai komponen frontend, seperti fungsi penggabungan class Tailwind (`utils.js` / `cn`), penanganan toast notifikasi Sonner terpusat (`notify.js`), dan audio player untuk sound feedback (`sound.js`).
+
 ### Komponen Reusable Inti Frontend
+
+Berikut adalah peran dan fungsi komponen generik utama yang tersedia di direktori `Components/`:
 
 - **`data-table/`**: Pustaka tabel generik yang mengintegrasikan TanStack Table dengan paginasi, pengurutan kolom, dan pencarian server-side.
 - **`combobox.jsx`**: Komponen select dengan fitur pencarian teks, mendukung opsi statis maupun _async search_ ke endpoint JSON.
