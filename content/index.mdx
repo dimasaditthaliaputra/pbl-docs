@@ -1,0 +1,46 @@
+---
+title: Ringkasan Proyek
+description: Gambaran umum PAGORA dan stack teknologi yang digunakan
+order: 1
+group: Pengantar
+---
+
+## Apa itu PAGORA?
+
+**PAGORA** adalah sistem pengadaan (_procurement_) berbasis web yang dibangun dengan arsitektur **monolith**: Laravel dan React berjalan dalam **satu project** (bukan repo terpisah), dijembatani oleh Inertia.js.
+
+## Stack Teknologi
+
+| Item                   | Keterangan                                                                                                  |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Nama**               | PAGORA — sistem pengadaan (_procurement_) berbasis web                                                      |
+| **Tipe**               | Monolith: Laravel + React dalam satu project                                                                |
+| **Backend**            | Laravel (PHP), Laravel Fortify (login email), Laravel Socialite (Google OAuth)                              |
+| **Frontend**           | Inertia.js + React + Vite (JavaScript / `.jsx`)                                                             |
+| **UI**                 | shadcn/ui + Tailwind CSS                                                                                    |
+| **Tabel & input**      | shadcn Data Table + `@tanstack/react-table`, Combobox (Popover + Command), `react-dropzone`                 |
+| **Database**           | PostgreSQL                                                                                                  |
+| **Arsitektur backend** | MVC + Service Repository Pattern                                                                            |
+| **Modul referensi**    | `Komoditas` (CRUD lengkap, dipakai sebagai contoh pola)                                                     |
+| **Bahasa**             | Pesan error/validasi: **Bahasa Indonesia**. Nama class, method, variabel, komentar kode: **Bahasa Inggris** |
+
+## Bagaimana Inertia.js Bekerja?
+
+Inertia.js bertindak sebagai **jembatan** antara backend Laravel dan frontend React:
+
+- Controller Laravel me-render halaman React lewat `Inertia::render()`.
+- Tidak perlu membangun API terpisah untuk halaman biasa.
+- Endpoint JSON hanya dipakai untuk kebutuhan khusus (misalnya async search Combobox).
+
+## Halaman Dokumentasi
+
+Dokumentasi ini mencakup:
+
+1. **Ringkasan Proyek** — gambaran umum stack dan arsitektur
+2. **Struktur Folder** — susunan folder backend (`app/`) dan frontend (`resources/js/`)
+3. **Arsitektur Backend** — MVC + Service Repository, tanggung jawab tiap layer
+4. **Alur Data** — cara request mengalir dari browser ke database dan kembali
+5. **Aturan Frontend** — pola React + Inertia, form, tabel, notifikasi
+6. **Standar Kode** — konvensi PHP, React, dan keamanan
+7. **Membuat Fitur Baru** — urutan langkah dan checklist
+8. **Panduan Git** — aturan branch, commit, dan pull request tim
