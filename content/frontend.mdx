@@ -7,12 +7,187 @@ group: Frontend
 
 ## Gambaran Umum
 
-Halaman ini menguraikan panduan pengembangan antarmuka pengguna berbasis Inertia.js dan React (.jsx).
+Frontend PAGORA dibangun di atas fondasi **Inertia.js + React** dengan berkas berekstensi `.jsx`, ditata menggunakan **Tailwind CSS** dan komponen antarmuka **shadcn/ui**. Halaman ini menetapkan seluruh aturan penulisan kode, penanganan form, standar komponen reusable, serta pola feedback audio dan notifikasi.
 
-## Standar Form dan Validasi
+<Callout type="warning" title="Konvensi Ekstensi dan Folder Frontend">
+  Proyek aktual menggunakan <code>.jsx</code> (JavaScript) dan folder berawalan huruf kapital (
+  <code>Pages/</code>, <code>Layouts/</code>, <code>Components/</code>). Dilarang mengubahnya
+  menjadi <code>.tsx</code> atau huruf kecil. Seluruh komponen wajib berbentuk{' '}
+  <strong>Functional Component + Hooks</strong> (dilarang class component).
+</Callout>
 
-Ketentuan penggunaan hook useForm, disable tombol saat proses, dan pelaporan error validasi per kolom input.
+## 1. Aturan Umum Frontend
 
-## Komponen Reusable
+- **Struktur Halaman:** Halaman diletakkan di dalam `Pages/` dan di-render langsung dari controller Laravel melalui `Inertia::render('Folder/Nama')` (contoh: `Pages/Master/Komoditas/Index.jsx` dipanggil via `Inertia::render('Master/Komoditas/Index')`).
+- **Komponen Reusable:** Setiap komponen yang digunakan di lebih dari satu halaman wajib dipindahkan ke direktori `Components/`.
+- **Komponen shadcn/ui:** Gunakan komponen primitive shadcn yang sudah terpasang. Jangan membuat ulang komponen yang sudah tersedia (pengecualian komponen yang diizinkan: `table`, `popover`, `command`, `dialog`, `alert-dialog`, `dropdown-menu`, `sonner`).
+- **Styling:** Hanya gunakan utility class **Tailwind CSS**. Hindari inline style (`style={{...}}`). Untuk penggabungan class kondisional, selalu gunakan helper `cn()` dari `lib/utils.js`.
+- **Identifier Data:** Seluruh data yang ditampilkan dan dikirim di frontend **hanya boleh menggunakan `uuid` atau `slug`**. Dilarang menggunakan kolom `id` auto-increment internal untuk URL, props, form state, hidden input, maupun `key` list.
+- **Kerapian Kode:** Tidak boleh meninggalkan `console.log`, kode mati, atau import yang tidak terpakai.
+- **Batasan Dependensi:** Dilarang meng-install package baru tanpa persetujuan (kecuali `@tanstack/react-table`, `react-dropzone`, dan komponen shadcn pendukung).
 
-Penggunaan Data Table berbasis TanStack, Combobox dinamis, dan FileDropzone.
+## 2. Standar Form (`useForm`)
+
+Seluruh formulir data di PAGORA wajib menggunakan hook `useForm` dari `@inertiajs/react`.
+
+<Callout type="info" title="Prinsip Formulir PAGORA">
+  Formulir tidak boleh mengandalkan validasi bawaan browser (HTML5 constraint validation). Form
+  wajib diberi atribut <code>&lt;form noValidate&gt;</code> dan dilarang menyematkan atribut HTML{' '}
+  <code>required</code>, <code>pattern</code>, <code>minLength</code>, atau <code>maxLength</code>.
+</Callout>
+
+Aturan penanganan formulir:
+
+1. **Nilai Awal Kosong:** State awal form wajib bernilai kosong murni (`''`, `false`, `[]`). **Dilarang keras mengisi form dengan data dummy atau `defaultValue`**.
+2. **Proteksi Submit Ganda:** Tombol submit wajib di-disable selama status `processing` bernilai `true`.
+3. **Pembersihan Error Otomatis:** Panggil `clearErrors('nama_field')` secara langsung saat pengguna mulai mengetik atau mengubah nilai pada input terkait.
+4. **Validasi Frontend:** Validasi sebelum submit dilakukan untuk memberi feedback instan. Jika validasi frontend menemukan kesalahan:
+   - Panggil `setError(field, pesanError)` untuk setiap kolom yang tidak valid.
+   - Hentikan proses pengiriman form (`e.preventDefault()`).
+   - Fokuskan kursor ke elemen input error yang pertama.
+   - Panggil `notify.validationFailed()` **tepat satu kali** (memutar suara gagal tanpa toast).
+
+## 3. Tampilan Error Input
+
+Setiap elemen input yang mengalami error validasi wajib menampilkan indikator visual yang jelas, atribut aksesibilitas, dan pesan teks error di bawahnya:
+
+<CodeBlock
+  filename="resources/js/Pages/Master/Komoditas/KomoditasForm.jsx"
+  language="jsx"
+  illustration={true}
+  code={`<div className="space-y-2">
+  <Label htmlFor="name">Nama Komoditas *</Label>
+  <Input
+    id="name"
+    value={data.name}
+    onChange={(e) => {
+      setData('name', e.target.value);
+      clearErrors('name');
+    }}
+    aria-invalid={!!errors.name}
+    className={cn(errors.name && 'border-destructive focus-visible:ring-destructive')}
+  />
+  {errors.name && (
+    <p className="text-sm font-medium text-destructive">{errors.name}</p>
+  )}
+</div>`}
+/>
+
+Standar tampilan error ini berlaku seragam untuk:
+
+- `Input` dan `Textarea`
+- `Select`
+- `Combobox`
+- `Checkbox`
+- `FileDropzone`
+
+## 4. Data Table (TanStack Table)
+
+Seluruh halaman daftar data tabular di PAGORA wajib menggunakan pustaka bersama di `Components/data-table/`, bukan menulis elemen `<table>` secara manual.
+
+Aturan tabel server-side:
+
+- **Definisi Kolom:** Didefinisikan per modul di dalam berkas terpisah `columns.jsx`.
+- **Server-Side Penuh:** Mengaktifkan opsi `manualPagination: true`, `manualSorting: true`, dan `manualFiltering: true`.
+- **Identifier Baris:** Wajib menyetel `getRowId: (row) => row.uuid`.
+- **Pencarian Ter-debounce:** Kolom pencarian teks menggunakan _debounce_ ±400 ms.
+- **Sinkronisasi URL:** State tabel disinkronkan ke URL query string melalui `router.get(route('...'), params, { preserveState: true, preserveScroll: true, replace: true, only: [...] })`.
+- **Status Tampilan:** Wajib menyediakan tampilan loading (skeleton/overlay) saat data dimuat ulang, serta _empty state_ ("Belum ada data") saat data kosong.
+- **Kolom Aksi:** Menu aksi per baris menggunakan `DropdownMenu` (Detail, Edit, Hapus). Konfirmasi hapus wajib menggunakan `AlertDialog` dengan tombol loading, bukan fungsi browser `window.confirm`.
+
+## 5. Komponen Searchable Select (`Combobox`)
+
+Pilihan data dinamis menggunakan satu komponen reusable `Components/combobox.jsx` (berbasis kombinasi Popover dan Command dari shadcn/ui):
+
+- **Opsi Sedikit (2–5 opsi statis):** Cukup gunakan shadcn `Select` standar.
+- **Opsi Relasi (≤ ±100 opsi):** Dikirim langsung dari controller melalui props Inertia.
+- **Opsi Banyak / Lintas Data:** Menggunakan _async search_ ke endpoint JSON khusus pencarian (dengan debounce dan limit maksimal 20–50 hasil).
+- **Format Opsi:** Selalu berformat `{ value: uuid, label: string }`. Nilai yang disimpan dan dikirim ke form adalah `uuid`.
+- **Props Minimal:** `options`, `value`, `onChange`, `placeholder`, `error`, `disabled`, `loading`, `clearable`.
+- **Tombol Pemicu:** Tombol trigger wajib menyertakan atribut `type="button"` agar tidak secara tidak sengaja men-submit form pembungkusnya saat ditekan.
+
+## 6. Unggah Dokumen (`FileDropzone`)
+
+Seluruh input berkas dokumen diwajibkan menggunakan `Components/file-dropzone.jsx` (berbasis `react-dropzone`). Dilarang menggunakan `<input type="file">` polos.
+
+Aturan unggah berkas:
+
+1. **Sinkronisasi Aturan:** Nilai `accept`, `maxSize`, dan `maxFiles` pada frontend harus identik dengan aturan yang ada di backend Form Request.
+2. **Berkas Ditolak:** Jika berkas ditolak (ukuran terlalu besar atau ekstensi dilarang), dropzone beralih ke state invalid, panggil `setError()`, dan picu `notify.validationFailed()`.
+3. **Pembersihan Memori:** Pratinjau gambar wajib memanggil `URL.revokeObjectURL(previewUrl)` saat komponen di-unmount atau berkas diganti untuk mencegah kebocoran memori browser.
+4. **Update dengan Berkas:** Request pembaruan data yang menyertakan berkas dikirim menggunakan method `post` dengan field spoofing `_method: 'put'`.
+5. **Hapus Berkas Lama:** Jika pengguna menghapus berkas yang sudah ada tanpa menggantinya, kirimkan flag `remove_<field>: true`.
+6. **Backend Storage:** Berkas disimpan oleh **Service** pada disk publik (`Storage::disk('public')`) dengan nama acak yang digenerate oleh server. Service bertugas menghapus berkas fisik lama saat terjadi penggantian atau penghapusan data. Pastikan symlink publik telah aktif (`php artisan storage:link`).
+
+## 7. Notifikasi & Suara (Sound FX)
+
+PAGORA menerapkan sistem feedback audio terstandar untuk mempertegas notifikasi visual:
+
+| Peristiwa / Hasil       | Pemanggilan Fungsi          | Respon Sistem                                                    |
+| ----------------------- | --------------------------- | ---------------------------------------------------------------- |
+| **Operasi Sukses**      | `notify.success(message)`   | Memutar suara `success.mp3` + memunculkan toast notifikasi       |
+| **Error Non-Validasi**  | `notify.error(message)`     | Memutar suara `failure.mp3` + memunculkan toast notifikasi       |
+| **Error Validasi Form** | `notify.validationFailed()` | Memutar suara `failure.mp3` saja (**tanpa toast**, pesan inline) |
+
+<Callout type="warning" title="Aturan Emas: Satu Event = Satu Suara">
+  <ul>
+    <li>
+      <strong>Satu event interaksi = satu suara.</strong> Dilarang menghasilkan suara ganda untuk
+      satu aksi pengguna.
+    </li>
+    <li>
+      Berkas audio standar tersimpan di <code>public/assets/sounds/success.mp3</code> dan{' '}
+      <code>failure.mp3</code>. Dilarang mengganti berkas ini.
+    </li>
+    <li>
+      Dilarang menginisialisasi <code>new Audio(...)</code> atau memanggil <code>toast.*</code>{' '}
+      langsung di dalam komponen. Seluruh interaksi wajib melalui <code>lib/sound.js</code> dan{' '}
+      <code>lib/notify.js</code>.
+    </li>
+    <li>
+      Pesan flash dari backend ditangani pada satu titik terpusat oleh{' '}
+      <code>Components/flash-handler.jsx</code> yang dipasang di <code>DashboardLayout.jsx</code>.
+    </li>
+    <li>
+      Fungsi <code>playSound</code> harus aman dari sisi SSR (memeriksa{' '}
+      <code>typeof window === 'undefined'</code>) dan menangkap Promise error pada{' '}
+      <code>audio.play()</code>.
+    </li>
+  </ul>
+</Callout>
+
+## 8. Modal vs Form Page
+
+Pemilihan antara jendela modal (`Dialog`) atau halaman form mandiri (`Create.jsx` / `Edit.jsx`) ditentukan berdasarkan kompleksitas isian form:
+
+| Kondisi Formulir                                                           | Bentuk yang Dipilih                       |
+| -------------------------------------------------------------------------- | ----------------------------------------- |
+| ≤ 4 field sederhana, tanpa upload berkas                                   | **Modal** (`Dialog`) di halaman index     |
+| ≥ 5 field, terdapat upload dokumen, textarea panjang, repeater, multi-step | **Form Page** mandiri (`Create` / `Edit`) |
+
+Jika ragu, **selalu pilih Form Page mandiri**. Modul referensi `Komoditas` menggunakan Form Page mandiri dengan komponen form bersama `KomoditasForm.jsx`.
+
+Aturan khusus form modal:
+
+- Dialog modal **tidak boleh ditutup** saat terjadi error validasi atau saat proses submit sedang berlangsung (`processing`).
+- Tutup modal hanya saat event `onSuccess`, lalu jalankan `reset()` dan `clearErrors()`.
+- Konfirmasi hapus selalu menggunakan `AlertDialog`, dilarang menggunakan `window.confirm`.
+
+## 9. Loading Button
+
+Setiap elemen button yang memicu proses async (submit form, simpan data, tombol hapus, login, Google login, logout, ekspor data, atau tombol konfirmasi dialog) wajib menggunakan komponen `Components/loading-button.jsx`:
+
+<CodeBlock
+  filename="resources/js/Components/loading-button.jsx"
+  language="jsx"
+  illustration={true}
+  code={`<LoadingButton
+  type="submit"
+  loading={processing}
+  loadingText="Menyimpan..."
+>
+  Simpan Data
+</LoadingButton>`}
+/>
+
+Saat sebuah tombol sedang dalam kondisi loading, seluruh tombol lain pada form atau dialog yang sama wajib di-disable untuk mencegah submit ganda atau pembatalan prematur.
