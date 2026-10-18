@@ -1,18 +1,450 @@
 ---
 title: Panduan Git
-description: Aturan tim, nama branch, format commit, dan alur kerja
+description: Aturan tim, konvensi branch, format commit, alur kerja harian, dan panduan Pull Request
 order: 8
 group: Panduan
 ---
 
 ## Gambaran Umum
 
-Panduan resmi tata kelola Git untuk tim pengembang dan AI agent yang berkontribusi pada proyek PAGORA.
+Panduan resmi tata kelola version control (Git) untuk tim pengembang dan AI agent yang berkontribusi pada proyek PAGORA. Seluruh anggota tim dan AI agent **wajib mematuhi aturan ini** untuk menjaga integritas repository, riwayat commit yang rapi, dan mencegah tabrakan kode (_merge conflict_).
 
-## Aturan Branch dan Commit
+<Callout type="danger" title="Aturan Mutlak: Penggabungan ke Branch Utama">
+  Branch utama proyek adalah <strong>main</strong>. Tidak ada branch <code>develop</code>. Seluruh
+  kontribusi fitur, perbaikan bug, refactor, dan dokumentasi wajib diselesaikan melalui{' '}
+  <strong>Pull Request (PR)</strong>.
+  <br />
+  <br />
+  <strong>
+    Hanya Dimas (pemilik repository) yang memiliki wewenang untuk me-merge PR ke main.
+  </strong>{' '}
+  Anggota tim lain maupun AI agent dilarang keras melakukan push langsung ke <code>main</code>,
+  merge lokal ke <code>main</code>, atau menjalankan <code>push --force</code>.
+</Callout>
 
-Standar pembuatan branch berbasis prefix (`feat/*`, `fix/*`, `refactor/*`, `docs/*`, `chore/*`) dan format pesan commit berjarak spasi (`feat : ...`).
+## 1. Aturan Tim (Ringkas)
 
-## Alur Kerja dan Pull Request
+Berikut adalah 6 aturan dasar alur Git tim PAGORA:
 
-Tata cara sinkronisasi kode dari main, mitigasi konflik dengan stash dan merge, serta ketentuan persetujuan PR oleh pemilik repositori.
+1. **Branch utama adalah `main`**. Proyek tidak menggunakan branch `develop`.
+2. **Setiap pekerjaan dikerjakan di branch sendiri** dengan format `<tipe>/<nama-fitur>` (contoh: `feat/komoditas-crud`).
+3. **Pesan commit wajib berformat** `tipe : deskripsi yang jelas` dengan spasi di kiri dan kanan titik dua (contoh: `feat : tambah form komoditas`).
+4. **Setiap pekerjaan diserahkan melalui Pull Request (PR)** dari branch kerja menuju `main`.
+5. **Hanya Dimas yang boleh merge ke `main`**. Pembuat PR dilarang me-merge PR-nya sendiri.
+6. **Bawa pembaruan dari `main` secara berkala** menggunakan `git stash` dan/atau `git merge origin/main` (arah `main` &rarr; branch kerja saja).
+
+## 2. Konsep Dasar Git
+
+Pahami peran masing-masing area kerja pada Git:
+
+| Area / Istilah                   | Penjelasan & Peran                                                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Working Directory**            | Direktori lokal di laptop tempat Anda menulis dan mengedit kode aplikasi.                                                           |
+| **Staging Area**                 | Area penampungan berkas yang telah ditandai via `git add` dan siap dimasukkan ke commit berikutnya.                                 |
+| **Local Repository**             | Riwayat commit dan cabang (_branch_) yang tersimpan secara lokal di laptop Anda (`.git`).                                           |
+| **Remote Repository (`origin`)** | Repositori pusat yang berada di GitHub/GitLab sebagai sumber sinkronisasi tim.                                                      |
+| **Branch**                       | Cabang kerja independen yang terisolasi dari cabang utama (`main`).                                                                 |
+| **Pull Request (PR)**            | Permintaan resmi untuk menggabungkan kode dari branch kerja ke `main` yang dilengkapi ruang diskusi dan peninjauan (_code review_). |
+
+## 3. Konvensi Penamaan Branch
+
+Setiap branch baru dibuat dengan format baku:
+
+```bash
+<tipe>/<nama-fitur-kebab-case>
+```
+
+Gunakan huruf kecil (_lowercase_), kata dipisahkan dengan tanda hubung (`-`), ringkas, dan berbahasa Inggris.
+
+| Prefix      | Kategori Pekerjaan                               | Contoh Penggunaan                                        |
+| ----------- | ------------------------------------------------ | -------------------------------------------------------- |
+| `feat/`     | Penambahan fitur baru                            | `feat/komoditas-crud`, `feat/vendor-registration`        |
+| `fix/`      | Perbaikan galat / bug fix                        | `fix/login-validation-error`, `fix/table-sort-whitelist` |
+| `refactor/` | Perapian kode tanpa mengubah fungsionalitas      | `refactor/komoditas-service`, `refactor/auth-controller` |
+| `docs/`     | Pembaruan dokumen atau dokumentasi               | `docs/panduan-git`, `docs/arsitektur-backend`            |
+| `chore/`    | Pengaturan konfigurasi, dependency, atau tooling | `chore/install-react-dropzone`, `chore/setup-mdx`        |
+
+<Callout type="warning" title="Hindari Penamaan Branch yang Buruk">
+  Dilarang menggunakan nama branch seperti: <code>fitur-baru</code>, <code>dimas-branch</code>,{' '}
+  <code>test</code>, <code>perbaikan_login</code>, nama dengan huruf kapital (
+  <code>feat/Komoditas</code>), atau nama yang mengandung spasi.
+</Callout>
+
+## 4. Standar Pesan Commit
+
+Format pesan commit tim PAGORA **wajib** menggunakan spasi sebelum dan sesudah tanda titik dua:
+
+```bash
+tipe : pesan commit yang jelas menggambarkan apa yang dikerjakan
+```
+
+### Tabel Prefix Commit
+
+| Prefix     | Kapan Digunakan           | Contoh Pesan yang Benar                                       |
+| ---------- | ------------------------- | ------------------------------------------------------------- |
+| `feat`     | Fitur baru                | `feat : tambah form create dan edit komoditas`                |
+| `fix`      | Perbaikan bug             | `fix : perbaiki sort kolom data table agar memakai whitelist` |
+| `refactor` | Refaktor struktur kode    | `refactor : pindahkan logika registrasi vendor ke service`    |
+| `docs`     | Dokumentasi sistem        | `docs : lengkapi panduan alur kerja git tim`                  |
+| `chore`    | Dependency, config, build | `chore : pasang react-dropzone dan update package lock`       |
+
+<Callout type="danger" title="Peringatan Format Commit">
+  Jangan hilangkan spasi pada tanda titik dua! Format <code>feat:tambah form</code> (tanpa spasi)
+  adalah <strong>salah</strong>.
+  <br />
+  Hindari pesan commit yang tidak deskriptif seperti: <code>update</code>, <code>fix bug</code>,{' '}
+  <code>revisi</code>, <code>asdf</code>, atau <code>final final fix</code>.
+</Callout>
+
+### Aturan Kualitas Commit
+
+- **Jelas dan Deskriptif:** Pesan harus menggambarkan perubahan logis yang terjadi, bukan nama aksi generik.
+- **Satu Commit = Satu Perubahan Logis:** Jangan menggabungkan fitur baru, perbaikan bug, dan perubahan konfigurasi ke dalam satu commit besar.
+- **Kecil dan Sering:** Commit kecil dan sering memudahkan pelacakan bug serta mitigasi konflik.
+- **Jangan Commit Berkas Rahasia / Build:** Pastikan berkas `.env`, direktori `vendor/`, `node_modules/`, serta berkas build `.next/` berada di dalam `.gitignore`.
+- **Verifikasi Sebelum Push:** Pastikan `php artisan route:list` dan `npm run build` lolos sebelum melakukan `git push`.
+
+## 5. Setup Awal Proyek (Sekali Saja)
+
+Bagi pengembang yang baru bergabung dengan repositori PAGORA, lakukan langkah konfigurasi awal berikut:
+
+<Steps>
+  <Step title="Konfigurasi Identitas Git Global">
+    Pastikan identitas nama dan email terpasang di mesin lokal Anda:
+    ```bash
+    git config --global user.name "Nama Lengkap Anda"
+    git config --global user.email "email@anda.com"
+    ```
+  </Step>
+
+  <Step title="Clone Repositori Proyek">
+    Salin repositori ke direktori kerja komputer lokal Anda:
+    ```bash
+    git clone <url-repository> pagora-website
+    cd pagora-website
+    ```
+  </Step>
+
+<Step title="Pasang Dependensi Backend & Frontend">
+  Instal pustaka PHP dan Node.js yang diperlukan: ```bash composer install npm install ```
+</Step>
+
+  <Step title="Konfigurasi Environment & Kunci Aplikasi">
+    Salin template konfigurasi dan generate encryption key Laravel:
+    ```bash
+    cp .env.example .env
+    php artisan key:generate
+    ```
+  </Step>
+</Steps>
+
+## 6. Alur Kerja Harian (Workflow)
+
+Ikuti 7 langkah standar harian berikut setiap kali mengerjakan task:
+
+<Steps>
+  <Step title="Sinkronkan Branch main Terbaru">
+    Selalu mulai pekerjaan dari titik commit `main` paling baru di GitHub:
+    ```bash
+    git checkout main
+    git pull origin main
+    ```
+  </Step>
+
+<Step title="Buat Branch Kerja Baru dari main">
+  Gunakan nama branch sesuai konvensi prefix: ```bash git checkout -b feat/komoditas-crud ```
+</Step>
+
+<Step title="Kerjakan Kode & Periksa Status">
+  Tulis kode sesuai kebutuhan. Periksa berkas yang berubah secara berkala: ```bash git status git
+  diff ```
+</Step>
+
+<Step title="Stage & Buat Commit Bertahap">
+  Masukkan perubahan yang sudah siap dan buat commit berformat baku: ```bash git add
+  app/Services/KomoditasService.php git commit -m "feat : tambah method store komoditas pada
+  service" ```
+</Step>
+
+<Step title="Push Branch ke Remote Repository">
+  Lakukan push pertama dengan opsi <code>-u</code> untuk mengatur tracking upstream: ```bash git
+  push -u origin feat/komoditas-crud # Push selanjutnya cukup menjalankan: git push ```
+</Step>
+
+<Step title="Buat Pull Request ke main di GitHub">
+  Buka repositori di GitHub dan buat Pull Request dari branch <code>feat/komoditas-crud</code>{' '}
+  menuju <code>main</code>.
+  <br />
+  <em>Ingat: Jangan pernah me-merge PR sendiri! Tunggu review dan persetujuan dari Dimas.</em>
+</Step>
+
+  <Step title="Bersihkan Branch Lokal Setelah Merge">
+    Setelah PR disetujui dan di-merge oleh Dimas ke <code>main</code>, hapus branch lokal:
+    ```bash
+    git checkout main
+    git pull origin main
+    git branch -d feat/komoditas-crud
+    ```
+  </Step>
+</Steps>
+
+## 7. Penanganan Perubahan Baru di main
+
+Kasus umum saat bekerja dalam tim: rekan tim lain telah me-merge PR ke `main` ketika Anda masih mengerjakan branch fitur. Segera bawa perubahan tersebut ke branch Anda dengan salah satu cara berikut:
+
+<Tabs items={['Cara A: Commit lalu Merge (Disarankan)', 'Cara B: Stash jika Belum Siap Commit']}>
+  <Tab value="Cara A: Commit lalu Merge (Disarankan)">
+    Gunakan cara ini jika progres pekerjaan Anda saat ini sudah mencapai titik logis yang layak di-commit:
+
+    ```bash
+    # 1. Simpan progres pekerjaan ke commit
+    git add .
+    git commit -m "feat : simpan progres form komoditas"
+
+    # 2. Ambil commit terbaru dari remote
+    git fetch origin
+
+    # 3. Gabungkan perubahan main ke branch kerja Anda
+    git merge origin/main
+
+    # 4. Selesaikan konflik jika ada, lalu lanjut bekerja
+    ```
+
+  </Tab>
+
+  <Tab value="Cara B: Stash jika Belum Siap Commit">
+    Gunakan cara ini jika ada kode setengah jadi yang belum layak di-commit, atau ketika Anda perlu beralih branch sementara:
+
+    ```bash
+    # 1. Simpan perubahan yang belum selesai ke stash sementara
+    git stash push -m "wip: form komoditas"
+
+    # 2. Ambil pembaruan main terbaru
+    git fetch origin
+
+    # 3. Gabungkan perubahan main ke branch kerja
+    git merge origin/main
+
+    # 4. Kembalikan perubahan kode Anda dari stash
+    git stash pop
+
+    # 5. Selesaikan konflik jika ada, lalu lanjut bekerja
+    ```
+
+  </Tab>
+</Tabs>
+
+<Callout type="info" title="Prinsip Arah Merge Lokal">
+  Arah merge yang diperbolehkan di mesin lokal hanyalah:{' '}
+  <strong>main &rarr; branch kerja Anda</strong>. Arah sebaliknya (
+  <strong>branch kerja &rarr; main</strong>) mutlak hanya boleh dilakukan melalui{' '}
+  <strong>Pull Request</strong> di GitHub dan hanya di-merge oleh Dimas.
+</Callout>
+
+## 8. Ringkasan Perintah Penting Git
+
+### 8.1 Menyelaraskan Kode (`fetch` vs `pull`)
+
+- **`git fetch origin`**: Mengunduh seluruh commit dan branch baru dari remote **tanpa** mengubah berkas di working directory lokal. Sangat aman dijalankan kapan saja.
+  ```bash
+  git fetch origin
+  git log HEAD..origin/main --oneline       # Lihat commit di main yang belum ada di branch Anda
+  git diff HEAD origin/main                 # Periksa perbedaan kode
+  ```
+- **`git pull origin main`**: Menjalankan `fetch` sekaligus menggabungkan (`merge`) perubahan dari remote `main` ke branch yang sedang aktif.
+
+### 8.2 Staging & Commit
+
+```bash
+git add <file>                              # Menambahkan berkas tertentu ke staging area
+git add .                                   # Menambahkan seluruh perubahan berkas
+git commit -m "feat : tambah halaman login" # Membuat commit baru
+git commit --amend -m "feat : pesan baru"   # Memperbaiki pesan commit terakhir (hanya jika BELUM di-push)
+```
+
+### 8.3 Push ke Remote
+
+```bash
+git push -u origin feat/nama-feature        # Push pertama kali + set upstream tracking
+git push                                    # Push berikutnya setelah upstream terpasang
+```
+
+<Callout type="danger" title="Larangan Keras Push">
+  Dilarang keras menjalankan <code>git push origin main</code> langsung dan dilarang menggunakan{' '}
+  <code>git push --force</code>.
+</Callout>
+
+### 8.4 Manajemen Branch
+
+```bash
+git branch                                  # Menampilkan daftar branch lokal
+git branch -a                               # Menampilkan semua branch (lokal & remote)
+git checkout -b feat/nama-feature           # Membuat branch baru dan langsung berpindah
+git switch feat/nama-feature                # Berpindah ke branch yang sudah ada
+git branch -d feat/nama-feature             # Menghapus branch lokal yang sudah di-merge
+```
+
+### 8.5 Manajemen Stash
+
+```bash
+git stash push -m "wip: komoditas form"     # Menyimpan perubahan sementara ke rak stash
+git stash list                              # Menampilkan daftar stash yang tersimpan
+git stash pop                               # Mengembalikan stash terbaru dan menghapusnya dari daftar
+git stash apply stash@{0}                   # Mengembalikan stash tanpa menghapusnya dari daftar
+git stash drop stash@{0}                    # Menghapus stash tertentu dari daftar
+```
+
+### 8.6 Memeriksa Status & Riwayat
+
+```bash
+git status                                  # Melihat status working tree dan staging
+git log --oneline --graph --decorate -n 20  # Menampilkan riwayat commit dengan visualisasi grafis
+git diff                                    # Memeriksa perubahan yang belum di-stage
+git diff --staged                           # Memeriksa perubahan yang sudah di-stage
+```
+
+### 8.7 Membatalkan Perubahan Secara Aman
+
+```bash
+git restore <file>                          # Membuang perubahan belum di-stage di working directory
+git restore --staged <file>                 # Membatalkan berkas dari staging area (unstage)
+git revert <hash>                           # Membuat commit baru pembalik commit lama (aman untuk yang sudah di-push)
+git reset --soft HEAD~1                     # Membatalkan commit terakhir, perubahan tetap aman di staging area
+```
+
+<Callout type="warning" title="Hindari git reset --hard">
+  Hindari menjalankan <code>git reset --hard</code> kecuali Anda benar-benar yakin seluruh perubahan
+  lokal yang belum di-push boleh dimusnahkan secara permanen.
+</Callout>
+
+## 9. Menyelesaikan Konflik Merge (Merge Conflict)
+
+Konflik merge terjadi saat dua branch memodifikasi baris kode yang sama di berkas yang sama. Jangan panik, selesaikan secara bertahap:
+
+<Steps>
+  <Step title="Deteksi Berkas Konflik">
+    Saat menjalankan `git merge origin/main`, Git akan memberitahu berkas yang gagal digabungkan secara otomatis:
+    ```bash
+    Auto-merging routes/web.php
+    CONFLICT (content): Merge conflict in routes/web.php
+    Automatic merge failed; fix conflicts and then commit the result.
+    ```
+  </Step>
+
+  <Step title="Buka Berkas & Periksa Penanda Konflik">
+    Buka berkas di editor. Git menandai bagian yang berbenturan dengan format:
+    ```text
+    <<<<<<< HEAD
+    // Kode milik branch Anda saat ini
+    Route::get('/komoditas', [KomoditasController::class, 'index']);
+    =======
+    // Kode dari branch main (milik rekan tim)
+    Route::get('/vendor', [VendorController::class, 'index']);
+    >>>>>>> origin/main
+    ```
+  </Step>
+
+  <Step title="Pilih & Gabungkan Kode yang Benar">
+    Diskusikan dengan rekan tim jika perlu, putuskan kode mana yang harus dipertahankan, dan **hapus semua penanda** `<<<<<<<`, `=======`, dan `>>>>>>>`.
+  </Step>
+
+<Step title="Uji Coba Kode & Jalankan Build">
+  Pastikan tidak ada kesalahan sintaks atau dependensi rusak setelah digabungkan: ```bash npm run
+  build # atau php artisan route:list ```
+</Step>
+
+  <Step title="Tandai Selesai & Commit">
+    Stage berkas yang telah diperbaiki lalu commit:
+    ```bash
+    git add routes/web.php
+    git commit                                # Pesan merge bawaan Git dapat langsung dipakai
+    ```
+    *Jika ingin membatalkan merge yang sedang berlangsung kapan saja: `git merge --abort`.*
+  </Step>
+</Steps>
+
+### Strategi Berkas yang Sering Konflik
+
+- **File Lock (`package-lock.json` / `composer.lock`):** Ambil versi dari `main`, lalu jalankan kembali `npm install` atau `composer install` untuk memperbarui berkas lock secara konsisten.
+- **Rute (`routes/web.php`) & Provider (`RepositoryServiceProvider.php`):** **Pertahankan kedua sisi!** Daftarkan rute dan binding milik Anda tanpa menghapus rute atau binding yang baru ditambahkan rekan tim.
+- **Navigasi Sidebar (`navigation.ts` / `AppSidebar.jsx`):** Gabungkan menu baru Anda bersama dengan item menu rekan tim lainnya.
+
+## 10. Panduan Pull Request (PR)
+
+Pull Request adalah tahap akhir sebelum kode Anda dapat digabungkan ke cabang utama `main`.
+
+<Callout type="info" title="Ketentuan Pull Request">
+  <ul>
+    <li>
+      <strong>Target Branch:</strong> Seluruh PR diarahkan dari branch fitur (<code>feat/...</code>,{' '}
+      <code>fix/...</code>) menuju <code>main</code>.
+    </li>
+    <li>
+      <strong>Judul PR:</strong> Wajib mengikuti format commit, contoh:{' '}
+      <code>feat : tambah modul master komoditas</code>.
+    </li>
+    <li>
+      <strong>Deskripsi PR:</strong> Jelaskan secara ringkas apa yang dikerjakan, cara menguji
+      fungsionalitas, sertakan screenshot (untuk perubahan UI), dan sebutkan catatan penting bagi
+      reviewer.
+    </li>
+    <li>
+      <strong>Wewenang Penggabungan:</strong> Hanya <strong>Dimas</strong> yang boleh me-merge PR ke{' '}
+      <code>main</code>. Dilarang me-merge PR Anda sendiri.
+    </li>
+  </ul>
+</Callout>
+
+### Checklist Sebelum Mengajukan PR
+
+Sebelum menekan tombol pembuatan PR di GitHub, pastikan:
+
+- [ ] Branch dibuat dari `main` terbaru dan telah sinkron dengan commit `main` terkini.
+- [ ] Fitur telah diuji secara menyeluruh dan tidak ada error pada console browser.
+- [ ] Checklist verifikasi kualitas pada halaman [Membuat Fitur Baru](/docs/fitur-baru) telah terpenuhi.
+- [ ] Perintah verifikasi lolos tanpa kesalahan (`npm run lint`, `npm run build`, `php artisan route:list`).
+- [ ] Seluruh berkas sementara, kode debugging (`console.log`, `dd()`), atau import mati telah dibersihkan.
+- [ ] Pesan commit mematuhi format baku `tipe : deskripsi`.
+
+---
+
+## 11. Sembilan Aturan Emas Tim PAGORA
+
+<Callout type="tip" title="Prinsip Inti Version Control Tim PAGORA">
+  <ol className="space-y-1.5 pl-4 text-xs sm:text-sm">
+    <li>
+      Selalu mulai pembuatan branch baru dari <code>main</code> yang paling baru.
+    </li>
+    <li>
+      Jangan pernah bekerja atau melakukan <code>git push</code> langsung ke branch{' '}
+      <code>main</code>.
+    </li>
+    <li>
+      Jangan me-merge branch kerja ke <code>main</code> secara lokal; seluruh penggabungan wajib
+      melalui PR dan hanya disetujui oleh Dimas.
+    </li>
+    <li>
+      Buat commit secara sering dan bertahap dengan format standar{' '}
+      <code>feat : pesan commit</code>.
+    </li>
+    <li>
+      Jangan meng-commit berkas konfigurasi rahasia (<code>.env</code>) atau berkas hasil
+      build/dependencies.
+    </li>
+    <li>
+      Jangan pernah menjalankan <code>push --force</code> ke repositori bersama.
+    </li>
+    <li>
+      Sinkronkan perubahan <code>main</code> secara berkala ke branch kerja Anda menggunakan
+      stash atau merge agar potensi konflik tidak menumpuk di akhir.
+    </li>
+    <li>
+      Koordinasikan pengerjaan berkas bersama (seperti berkas rute, provider, sidebar, dan lock
+      file) dengan anggota tim lainnya.
+    </li>
+    <li>
+      Jangan mengubah atau menyentuh berkas di luar ruang lingkup (scope) tugas yang sedang
+      dikerjakan.
+    </li>
+  </ol>
+</Callout>
