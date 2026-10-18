@@ -8,7 +8,11 @@ export default function NotFound() {
     <div className="flex min-h-screen flex-col bg-background">
       <Header showMobileNav={false} />
 
-      <main className="flex flex-1 flex-col items-center justify-center px-4 py-20 text-center sm:px-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="focus:outline-hidden flex flex-1 flex-col items-center justify-center px-4 py-20 text-center sm:px-6"
+      >
         <div className="mx-auto max-w-md">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
             <FileQuestion className="h-8 w-8 text-primary" />

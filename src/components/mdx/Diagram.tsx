@@ -36,7 +36,11 @@ export function Diagram({
       </div>
 
       {/* Diagram Canvas */}
-      <div className="overflow-x-auto p-6">
+      <div
+        role="img"
+        aria-label={title || 'Diagram Alur Sistem PAGORA'}
+        className="overflow-x-auto p-6"
+      >
         {type === 'request-flow' && <RequestFlowDiagram />}
         {type === 'data-flow' && <DataFlowDiagram />}
         {type === 'architecture' && <ArchitectureDiagram />}

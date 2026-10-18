@@ -18,10 +18,13 @@ export function PageNav({ prev, next }: PageNavProps) {
       {prev ? (
         <Link
           href={`/docs/${prev.slug}`}
-          className="group flex flex-col justify-between rounded-lg border border-border p-4 text-sm transition-all hover:border-primary/50 hover:bg-accent/40"
+          className="focus-visible:outline-hidden group flex flex-col justify-between rounded-lg border border-border p-4 text-sm transition-all hover:border-primary/50 hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
+            <ArrowLeft
+              className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1"
+              aria-hidden="true"
+            />
             <span>Sebelumnya</span>
           </span>
           <span className="mt-2 font-medium text-foreground transition-colors group-hover:text-primary">
@@ -35,11 +38,14 @@ export function PageNav({ prev, next }: PageNavProps) {
       {next ? (
         <Link
           href={`/docs/${next.slug}`}
-          className="group flex flex-col justify-between rounded-lg border border-border p-4 text-right text-sm transition-all hover:border-primary/50 hover:bg-accent/40 sm:col-start-2"
+          className="focus-visible:outline-hidden group flex flex-col justify-between rounded-lg border border-border p-4 text-right text-sm transition-all hover:border-primary/50 hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-primary sm:col-start-2"
         >
           <span className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
             <span>Berikutnya</span>
-            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+            <ArrowRight
+              className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1"
+              aria-hidden="true"
+            />
           </span>
           <span className="mt-2 font-medium text-foreground transition-colors group-hover:text-primary">
             {next.title}

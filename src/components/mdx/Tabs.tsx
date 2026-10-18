@@ -46,16 +46,22 @@ export function Tabs({ items, defaultValue, children, className = '' }: TabsProp
       className={cn('shadow-xs my-6 overflow-hidden rounded-xl border border-border', className)}
     >
       {/* Tabs navigation header */}
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-border bg-muted/50 p-1.5">
+      <div
+        role="tablist"
+        aria-label="Tab konten"
+        className="flex items-center gap-1 overflow-x-auto border-b border-border bg-muted/50 p-1.5"
+      >
         {tabList.map((tab) => {
           const isActive = activeTab === tab.value
           return (
             <button
               key={tab.value}
               type="button"
+              role="tab"
+              aria-selected={isActive}
               onClick={() => setActiveTab(tab.value)}
               className={cn(
-                'whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all active:scale-95',
+                'focus-visible:outline-hidden whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-primary active:scale-95',
                 isActive
                   ? 'shadow-xs bg-background font-semibold text-foreground'
                   : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
@@ -71,7 +77,16 @@ export function Tabs({ items, defaultValue, children, className = '' }: TabsProp
       <div className="bg-card/40 p-4">
         {childTabs.length > 0 ? (
           childTabs.map((tab) => (
-            <div key={tab.value} className={activeTab === tab.value ? 'block' : 'hidden'}>
+            <div
+              key={tab.value}
+              role="tabpanel"
+              tabIndex={0}
+              aria-label={tab.label}
+              className={cn(
+                'focus-visible:outline-hidden',
+                activeTab === tab.value ? 'block' : 'hidden'
+              )}
+            >
               {tab.element}
             </div>
           ))

@@ -95,9 +95,10 @@ export function Checklist({
                 type="button"
                 role="checkbox"
                 aria-checked={isDone}
+                aria-label={item.label}
                 onClick={() => toggleItem(item.id)}
                 className={cn(
-                  'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+                  'focus-visible:outline-hidden mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors focus-visible:ring-2 focus-visible:ring-primary',
                   isDone
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-muted-foreground/40 bg-background hover:border-primary'

@@ -20,7 +20,7 @@ export default function HomePage() {
     <div className="flex min-h-screen flex-col bg-background">
       <Header showMobileNav={false} />
 
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="focus:outline-hidden flex-1">
         {/* Hero Section */}
         <section className="relative overflow-hidden border-b border-border/40 py-20 sm:py-28">
           <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
