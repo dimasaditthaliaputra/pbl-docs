@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { getAllSlugs, getDocBySlug } from '@/src/lib/content'
 import { getPrevNext } from '@/src/lib/navigation'
-import Link from 'next/link'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
-import type { Metadata } from 'next'
+import { extractTocFromContent } from '@/src/lib/toc'
+import { Breadcrumb } from '@/src/components/docs/Breadcrumb'
+import { Toc, TocMobile } from '@/src/components/docs/Toc'
+import { PageNav } from '@/src/components/docs/PageNav'
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -19,7 +21,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const doc = getDocBySlug(slug)
 
   if (!doc) {
-    return { title: 'Halaman tidak ditemukan' }
+    return { title: 'Halaman Tidak Ditemukan' }
   }
 
   return {
@@ -36,72 +38,68 @@ export default async function DocPage({ params }: PageProps) {
     notFound()
   }
 
-  // Dynamic import of MDX file — Next.js compiles .mdx files natively with @next/mdx
   let MDXContent: React.ComponentType | null = null
   try {
     const mdxModule = await import(`../../../../content/${slug}.mdx`)
     MDXContent = mdxModule.default
   } catch {
-    // MDX file may not exist yet for future content; fall back to raw content display
+    // Fallback if MDX file cannot be imported
   }
 
   const { prev, next } = getPrevNext(slug)
+  const toc = extractTocFromContent(doc.content)
+
+  const breadcrumbItems = [
+    { label: 'Dokumentasi', href: '/docs/index' },
+    { label: doc.frontmatter.group },
+    { label: doc.frontmatter.title },
+  ]
 
   return (
-    <article>
-      <div className="mb-8">
-        <p className="mb-2 text-sm font-medium text-muted-foreground">{doc.frontmatter.group}</p>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          {doc.frontmatter.title}
-        </h1>
-        {doc.frontmatter.description && (
-          <p className="mt-3 text-lg text-muted-foreground">{doc.frontmatter.description}</p>
-        )}
-      </div>
+    <div className="flex gap-10">
+      <article className="min-w-0 flex-1">
+        <Breadcrumb items={breadcrumbItems} />
 
-      <div className="prose prose-slate max-w-none dark:prose-invert">
-        {MDXContent ? (
-          <MDXContent />
-        ) : (
-          <p className="text-muted-foreground">Konten segera hadir.</p>
-        )}
-      </div>
+        <header className="mb-8 border-b border-border/60 pb-6">
+          <div className="mb-2 inline-flex items-center rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+            {doc.frontmatter.group}
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+            {doc.frontmatter.title}
+          </h1>
+          {doc.frontmatter.description && (
+            <p className="mt-3 text-base leading-relaxed text-muted-foreground sm:text-lg">
+              {doc.frontmatter.description}
+            </p>
+          )}
+        </header>
 
-      {/* Prev/Next navigation */}
-      <nav
-        className="mt-12 flex items-center justify-between border-t border-border pt-8"
-        aria-label="Navigasi halaman"
-      >
-        {prev ? (
-          <Link
-            href={`/docs/${prev.slug}`}
-            className="group flex items-center gap-3 rounded-lg border border-border p-4 text-sm transition-colors hover:bg-accent"
-          >
-            <ArrowLeft className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:-translate-x-1" />
-            <div>
-              <p className="text-xs text-muted-foreground">Sebelumnya</p>
-              <p className="font-medium text-foreground">{prev.title}</p>
-            </div>
-          </Link>
-        ) : (
-          <div />
-        )}
+        {/* Mobile TOC accordion visible on screen < xl */}
+        <div className="xl:hidden">
+          <TocMobile toc={toc} />
+        </div>
 
-        {next ? (
-          <Link
-            href={`/docs/${next.slug}`}
-            className="group flex items-center gap-3 rounded-lg border border-border p-4 text-sm transition-colors hover:bg-accent"
-          >
-            <div className="text-right">
-              <p className="text-xs text-muted-foreground">Berikutnya</p>
-              <p className="font-medium text-foreground">{next.title}</p>
-            </div>
-            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
-          </Link>
-        ) : (
-          <div />
-        )}
-      </nav>
-    </article>
+        {/* Render MDX content */}
+        <div className="prose prose-slate max-w-none dark:prose-invert">
+          {MDXContent ? (
+            <MDXContent />
+          ) : (
+            <p className="text-muted-foreground">Konten segera hadir.</p>
+          )}
+        </div>
+
+        {/* Previous and Next Navigation */}
+        <PageNav prev={prev} next={next} />
+      </article>
+
+      {/* Desktop TOC sticky on the right for screen >= xl */}
+      {toc.length > 0 && (
+        <aside className="hidden w-64 shrink-0 xl:block">
+          <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
+            <Toc toc={toc} />
+          </div>
+        </aside>
+      )}
+    </div>
   )
 }
