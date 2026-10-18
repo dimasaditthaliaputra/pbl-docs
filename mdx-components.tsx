@@ -1,6 +1,12 @@
 import type { MDXComponents } from 'mdx/types'
 import React from 'react'
 import { slugifyHeading } from '@/src/lib/toc'
+import { CodeBlock } from '@/src/components/mdx/CodeBlock'
+import { Callout } from '@/src/components/mdx/Callout'
+import { FileTree } from '@/src/components/mdx/FileTree'
+import { Steps, Step } from '@/src/components/mdx/Steps'
+import { Tabs, Tab } from '@/src/components/mdx/Tabs'
+import { Diagram } from '@/src/components/mdx/Diagram'
 
 function extractText(node: React.ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') {
@@ -19,6 +25,17 @@ function extractText(node: React.ReactNode): string {
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
     ...components,
+    // Custom MDX components available globally in any MDX file
+    CodeBlock,
+    Callout,
+    FileTree,
+    Steps,
+    Step,
+    Tabs,
+    Tab,
+    Diagram,
+
+    // Typography & Element overrides
     h1: ({ children }) => (
       <h1 className="mt-8 scroll-mt-24 text-3xl font-bold tracking-tight text-foreground">
         {children}
@@ -69,6 +86,22 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
           </a>
         </h3>
       )
+    },
+    pre: ({ children }) => {
+      // Check if children is a <code> element with a language class
+      if (React.isValidElement(children)) {
+        const childProps = children.props as {
+          className?: string
+          children?: React.ReactNode
+        }
+        const className = childProps?.className || ''
+        const codeText = extractText(childProps?.children)
+        const language = className.replace(/^language-/, '') || 'text'
+        return <CodeBlock code={codeText} language={language} />
+      }
+
+      const rawText = extractText(children)
+      return <CodeBlock code={rawText} language="text" />
     },
     table: ({ children }) => (
       <div className="my-6 overflow-x-auto rounded-lg border border-border">
