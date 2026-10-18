@@ -7,57 +7,72 @@ group: Pengantar
 
 ## Apa itu PAGORA?
 
-**PAGORA** adalah sistem pengadaan (_procurement_) berbasis web yang dibangun dengan arsitektur **monolith**: Laravel dan React berjalan dalam **satu project** (bukan repo terpisah), dijembatani oleh Inertia.js.
+**PAGORA** adalah sistem pengadaan (_procurement_) berbasis web yang dibangun dengan arsitektur **monolith**: Laravel dan React berjalan dalam **satu project** (bukan repositori terpisah), dijembatani secara elegan oleh **Inertia.js**.
 
 <Callout type="info" title="Arsitektur Monolith">
-  PAGORA bukan aplikasi terpisah antara API backend dan Single Page Application (SPA). Controller
-  Laravel langsung menyajikan halaman React menggunakan <code>Inertia::render()</code> tanpa perlu
-  membuat endpoint REST API manual untuk halaman biasa.
+  PAGORA bukan aplikasi dengan backend API terpisah dan Single Page Application (SPA) mandiri.
+  Controller Laravel langsung me-render halaman React menggunakan <code>Inertia::render()</code>{' '}
+  tanpa perlu membangun endpoint REST API untuk alur halaman biasa.
 </Callout>
 
 <Diagram
   type="architecture"
   title="Arsitektur Monolith PAGORA"
-  caption="Struktur monolith PAGORA: Laravel dan React berjalan dalam satu repositori dengan jembatan Inertia.js"
+  caption="Struktur monolith PAGORA: Laravel dan React berjalan dalam satu repositori yang dijembatani oleh Inertia.js"
 />
 
 ## Stack Teknologi
 
+Tabel berikut merangkum seluruh fondasi teknologi utama yang digunakan dalam pengembangan sistem PAGORA:
+
 | Item                   | Keterangan                                                                                                  |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **Nama**               | PAGORA — sistem pengadaan (_procurement_) berbasis web                                                      |
-| **Tipe**               | Monolith: Laravel + React dalam satu project                                                                |
+| **Tipe**               | Monolith: Laravel + React dalam satu project (bukan repo terpisah)                                          |
 | **Backend**            | Laravel (PHP), Laravel Fortify (login email), Laravel Socialite (Google OAuth)                              |
 | **Frontend**           | Inertia.js + React + Vite (JavaScript / `.jsx`)                                                             |
 | **UI**                 | shadcn/ui + Tailwind CSS                                                                                    |
-| **Tabel & input**      | shadcn Data Table + `@tanstack/react-table`, Combobox (Popover + Command), `react-dropzone`                 |
+| **Tabel & Input**      | shadcn Data Table + `@tanstack/react-table`, Combobox (Popover + Command), `react-dropzone`                 |
 | **Database**           | PostgreSQL                                                                                                  |
 | **Arsitektur backend** | MVC + Service Repository Pattern                                                                            |
-| **Modul referensi**    | `Komoditas` (CRUD lengkap, dipakai sebagai contoh pola)                                                     |
+| **Modul referensi**    | `Komoditas` (CRUD lengkap, dipakai sebagai contoh pola arsitektur)                                          |
 | **Bahasa**             | Pesan error/validasi: **Bahasa Indonesia**. Nama class, method, variabel, komentar kode: **Bahasa Inggris** |
 
 ## Karakteristik Stack
 
-<Tabs items={['Backend', 'Frontend', 'Database']}>
+<Tabs items={['Backend', 'Frontend', 'Database', 'Konvensi Bahasa']}>
   <Tab value="Backend">
     <p>
-      Backend dibangun dengan <strong>Laravel (PHP)</strong> menggunakan arsitektur MVC + Service
-      Repository Pattern. Autentikasi email ditangani oleh Laravel Fortify, sedangkan Google OAuth
-      ditangani oleh Laravel Socialite.
+      Backend mengadopsi <strong>Laravel (PHP)</strong> dengan pola{' '}
+      <em>MVC + Service Repository</em>. Autentikasi email standar dikelola oleh{' '}
+      <strong>Laravel Fortify</strong>, sedangkan integrasi Google OAuth ditangani oleh{' '}
+      <strong>Laravel Socialite</strong>. Logika query diisolasi di Repository, dan transaksi
+      multi-tabel dibungkus di layer Service.
     </p>
   </Tab>
   <Tab value="Frontend">
     <p>
-      Frontend menggunakan <strong>React + Vite</strong> dengan ekstensi <code>.jsx</code>. Komponen
-      UI mengadopsi <strong>shadcn/ui</strong> dan <strong>Tailwind CSS</strong>, serta TanStack
-      Table untuk manipulasi tabel server-side.
+      Frontend dikembangkan dengan <strong>React + Vite</strong> menggunakan berkas berekstensi{' '}
+      <code>.jsx</code>. Komponen antarmuka pengguna berbasis <strong>shadcn/ui</strong> dan{' '}
+      <strong>Tailwind CSS</strong>, didukung oleh <strong>TanStack Table</strong> untuk visualisasi
+      data server-side dan <code>react-dropzone</code> untuk upload dokumen.
     </p>
   </Tab>
   <Tab value="Database">
     <p>
-      Penyimpanan data utama menggunakan <strong>PostgreSQL</strong>. Seluruh entitas CRUD
-      menggunakan <strong>UUID</strong> sebagai identifier publik untuk mencegah eksploitasi IDOR
-      dan enumerasi data.
+      Database utama adalah <strong>PostgreSQL</strong>. Setiap entitas CRUD diwajibkan memiliki
+      kolom <strong>UUID</strong> sebagai identifier publik untuk mencegah eksploitasi IDOR
+      (*Insecure Direct Object Reference*). Kolom <code>id</code> auto-increment hanya dipakai
+      internal backend.
+    </p>
+  </Tab>
+  <Tab value="Konvensi Bahasa">
+    <p>
+      Proyek menerapkan standar bilingual: seluruh{' '}
+      <strong>pesan error, validasi form, dan feedback pengguna</strong> ditulis dalam{' '}
+      <strong>Bahasa Indonesia</strong>. Sedangkan{' '}
+      <strong>nama class, method, fungsi, variabel, route, dan komentar kode</strong> ditulis dalam{' '}
+      <strong>Bahasa Inggris</strong>.
     </p>
   </Tab>
 </Tabs>
@@ -66,19 +81,29 @@ group: Pengantar
 
 Inertia.js bertindak sebagai **jembatan** antara backend Laravel dan frontend React:
 
-- Controller Laravel me-render halaman React lewat `Inertia::render()`.
-- Tidak perlu membangun API terpisah untuk halaman biasa.
-- Endpoint JSON hanya dipakai untuk kebutuhan khusus (misalnya async search Combobox).
+- Controller Laravel me-render halaman React lewat `Inertia::render('Path/Komponen', $props)`.
+- Pengembang tidak perlu membangun API terpisah (seperti Laravel API Resource routes) hanya untuk menampilkan halaman biasa.
+- Header `X-Inertia` dikirim secara otomatis oleh Inertia pada request XHR, bersama token CSRF.
+- Endpoint JSON murni hanya dipakai untuk kebutuhan khusus (misalnya fitur _async search_ pada Combobox).
+
+## Modul Referensi: Komoditas
+
+Seluruh pola arsitektur, alur data, form, dan standar kode di PAGORA mengacu pada modul referensi **Komoditas**. Modul ini telah mengimplementasikan alur CRUD lengkap:
+
+- Listing data dengan TanStack Table server-side (pencarian, pengurutan whitelist, dan paginasi).
+- Form tambah data (`Create.jsx`) dan form ubah data (`Edit.jsx`) yang memanfaatkan form reusable (`KomoditasForm.jsx`).
+- Validasi Form Request dengan pesan Bahasa Indonesia.
+- Identifier publik UUID dan API Resource eksplisit (`KomoditasResource.php`).
 
 ## Halaman Dokumentasi
 
-Dokumentasi ini mencakup:
+Dokumentasi ini disusun menjadi 8 topik pembahasan:
 
-1. **Ringkasan Proyek** — gambaran umum stack dan arsitektur
-2. **Struktur Folder** — susunan folder backend (`app/`) dan frontend (`resources/js/`)
-3. **Arsitektur Backend** — MVC + Service Repository, tanggung jawab tiap layer
-4. **Alur Data** — cara request mengalir dari browser ke database dan kembali
-5. **Aturan Frontend** — pola React + Inertia, form, tabel, notifikasi
-6. **Standar Kode** — konvensi PHP, React, dan keamanan
-7. **Membuat Fitur Baru** — urutan langkah dan checklist
-8. **Panduan Git** — aturan branch, commit, dan pull request tim
+1. **Ringkasan Proyek** — Gambaran umum stack dan arsitektur monolit
+2. **Struktur Folder** — Susunan folder backend (`app/`) dan frontend (`resources/js/`)
+3. **Arsitektur Backend** — Pola MVC + Service Repository, tanggung jawab tiap layer, dan dependency
+4. **Alur Data** — Siklus data dari form submit, validasi, repository, hingga notifikasi suara/toast
+5. **Aturan Frontend** — Standar React + Inertia, form validation, Data Table, Combobox, dan FileDropzone
+6. **Standar Kode** — Konvensi penulisan PHP (PSR-12), React, dan prinsip keamanan aplikasi
+7. **Membuat Fitur Baru** — Urutan langkah teknis dan checklist verifikasi modul baru
+8. **Panduan Git** — Aturan branch tim, format commit berjarak spasi, dan alur kolaborasi PR
