@@ -23,3 +23,14 @@ export interface NavGroup {
   title: string
   items: NavItem[]
 }
+
+export interface TocItem {
+  id: string
+  title: string
+  level: 2 | 3
+}
+
+export interface BreadcrumbItem {
+  label: string
+  href?: string
+}
