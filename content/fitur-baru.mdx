@@ -7,87 +7,197 @@ group: Panduan
 
 ## Gambaran Umum
 
-Setiap pembuatan fitur atau modul baru di PAGORA wajib mengikuti urutan rekayasa yang konsisten. Alur ini menjamin kontrak data, validasi, dan arsitektur tetap terjaga.
+Setiap penambahan fitur atau modul baru di lingkungan proyek PAGORA wajib mengikuti alur rekayasa terstruktur dari lapisan data paling bawah hingga antarmuka pengguna. Standar ini memastikan bahwa model database, kontrak antarmuka, logika bisnis, validasi, dan rendering React selalu sinkron dan teruji.
 
 <Callout type="info" title="Urutan Eksekusi Wajib">
-  Pengerjaan fitur selalu mengalir dari layer terbawah ke antarmuka:
+  Pengerjaan fitur selalu mengalir dari layer terbawah menuju antarmuka:
   <strong>
-    Migration/Model → Repository → Service → Form Request → Resource → Controller → Route →
+    Migration/Model → Repository → Service → Form Request → API Resource → Controller → Route →
     Frontend.
   </strong>
 </Callout>
 
-## Tahapan Pembuatan Fitur
+## 1. Urutan Pengerjaan Fitur Baru (11 Tahap)
+
+Ikuti sebelas langkah berikut secara berurutan saat menambahkan modul baru:
 
 <Steps>
-  <Step title="1. Migration dan Model">
+  <Step title="1. Pahami Alur Fitur & Tulis Asumsi">
     <p>
-      Buat migration dengan menambahkan kolom <code>$table->uuid('uuid')->unique()</code> dan Model dengan trait <code>HasUuids</code> serta <code>$hidden = ['id']</code>.
+      Pelajari alur bisnis fitur yang diminta. Jika menemukan hal yang ambigu atau belum terdefinisi secara jelas pada spesifikasi, tuliskan sebagai poin asumsi teknis sebelum mulai menulis kode.
     </p>
   </Step>
 
-<Step title="2. Repository Interface & Implementasi">
+<Step title="2. Periksa & Gunakan Ulang Kode yang Ada">
   <p>
-    Definisikan kontrak query di <code>app/Repositories/Contracts/</code> lalu implementasikan di{' '}
-    <code>app/Repositories/Eloquent/</code>. Daftarkan binding di{' '}
-    <code>RepositoryServiceProvider</code>.
+    Periksa model, migration, komponen antarmuka, dan helper yang sudah ada di dalam proyek. Gunakan
+    kembali kode yang tersedia dan hindari membuat fungsi atau komponen duplikat.
   </p>
 </Step>
 
-<Step title="3. Service (Logika Bisnis)">
-  <p>
-    Tuliskan logika bisnis di <code>app/Services/</code>. Suntikkan Repository Interface melalui
-    constructor promotion. Bungkus operasi multi-tabel dalam <code>DB::transaction()</code>.
-  </p>
-</Step>
-
-<Step title="4. Form Request (Validasi Input)">
-  <p>
-    Buat Form Request di <code>{'app/Http/Requests/{Domain}/'}</code>. Seluruh pesan validasi wajib
-    berbahasa Indonesia pada method <code>messages()</code>.
-  </p>
-</Step>
-
-<Step title="5. API Resource (Transformasi Output)">
-  <p>
-    Transformasikan data yang dikirim ke frontend menggunakan API Resource di{' '}
-    <code>app/Http/Resources/</code>. Hindari mengekspos kolom <code>id</code> internal.
-  </p>
-</Step>
-
-<Step title="6. Controller Tipis">
-  <p>
-    Gunakan controller tipis yang hanya memanggil Service dan membungkus hasil respons via{' '}
-    <code>ResponseHelper</code> atau <code>Inertia::render()</code>.
-  </p>
-</Step>
-
-<Step title="7. Route Web">
-  <p>
-    Daftarkan rute di <code>routes/web.php</code> dengan parameter <code>{'{uuid}'}</code> dan
-    constraint <code>whereUuid('uuid')</code>. Seluruh route wajib memiliki nama (
-    <code>name()</code>).
-  </p>
-</Step>
-
-  <Step title="8. Frontend (React + Inertia)">
+  <Step title="3. Buat Migration & Model dengan UUID">
     <p>
-      Buat halaman React di <code>{'Pages/Master/{Modul}/'}</code> (terdiri dari <code>Index.jsx</code>, <code>Create.jsx</code>, <code>Edit.jsx</code>, <code>{'{Modul}Form.jsx'}</code>, dan <code>columns.jsx</code>) menggunakan komponen shadcn/ui dan TanStack Table.
+      Buat migration database baru dengan kolom UUID publik <code>$table->uuid('uuid')->unique()</code>. Pada Model Eloquent, pasang trait <code>HasUuids</code>, sembunyikan id internal dengan <code>$hidden = ['id']</code>, dan setel <code>getRouteKeyName()</code> ke <code>'uuid'</code>.
+    </p>
+  </Step>
+
+<Step title="4. Buat Repository Interface & Implementasi">
+  <p>
+    Definisikan kontrak query di{' '}
+    <code>{'app/Repositories/Contracts/{Model}RepositoryInterface.php'}</code>. Buat implementasi
+    query Eloquent di <code>{'app/Repositories/Eloquent/{Model}Repository.php'}</code> dengan
+    whitelist kolom sort dan paginasi maksimal 100 baris. Daftarkan binding di{' '}
+    <code>RepositoryServiceProvider.php</code>.
+  </p>
+</Step>
+
+<Step title="5. Buat Service & Transaksi">
+  <p>
+    Pusatkan logika bisnis di <code>{'app/Services/{Model}Service.php'}</code>. Suntikkan Repository
+    Interface melalui constructor. Bungkus operasi yang menyentuh lebih dari satu tabel dalam blok
+    transaksi <code>DB::transaction()</code>.
+  </p>
+</Step>
+
+<Step title="6. Buat Form Request dengan Pesan Indonesia">
+  <p>
+    Buat Form Request terpisah di <code>{'app/Http/Requests/{Domain}/'}</code> (contoh:{' '}
+    <code>StoreKomoditasRequest.php</code>). Seluruh pesan kegagalan validasi pada method{' '}
+    <code>messages()</code> wajib menggunakan Bahasa Indonesia.
+  </p>
+</Step>
+
+<Step title="7. Buat API Resource Eksplisit">
+  <p>
+    Buat Resource di <code>{'app/Http/Resources/{Model}Resource.php'}</code> untuk memetakan data
+    model menjadi representasi yang siap dikonsumsi frontend. Pastikan kolom internal{' '}
+    <code>id</code> tidak pernah disertakan.
+  </p>
+</Step>
+
+<Step title="8. Buat Controller Tipis">
+  <p>
+    Buat controller tipis di <code>app/Http/Controllers/</code>. Controller hanya memanggil method
+    pada Service dan membungkus hasil respons via <code>ResponseHelper</code> atau{' '}
+    <code>Inertia::render()</code>.
+  </p>
+</Step>
+
+<Step title="9. Daftarkan Route Web">
+  <p>
+    Daftarkan route di <code>routes/web.php</code>. Berikan parameter <code>{'{uuid}'}</code> dengan
+    constraint <code>whereUuid('uuid')</code>. Seluruh rute wajib memiliki nama (<code>name()</code>
+    ) dan middleware yang sesuai (<code>auth</code> atau <code>guest</code>).
+  </p>
+</Step>
+
+<Step title="10. Bangun Antarmuka React di Pages/">
+  <p>
+    Buat komponen halaman di <code>{'Pages/Master/{Modul}/'}</code> yang terdiri dari{' '}
+    <code>Index.jsx</code> (tabel data TanStack server-side), <code>Create.jsx</code>,{' '}
+    <code>Edit.jsx</code>, <code>{'{Modul}Form.jsx'}</code> (form bersama), dan{' '}
+    <code>columns.jsx</code> (definisi kolom).
+  </p>
+</Step>
+
+  <Step title="11. Jalankan Verifikasi Pra-Selesai">
+    <p>
+      Jalankan perintah verifikasi: pastikan <code>php artisan route:list</code> tidak memiliki konflik rute, serta perintah <code>npm run build</code> dan <code>npm run lint</code> selesai tanpa error.
     </p>
   </Step>
 </Steps>
 
-## Checklist Sebelum Selesai
+## 2. Checklist Verifikasi Sebelum Selesai
 
-- [ ] Struktur folder benar; tidak ada file di tempat salah.
-- [ ] Controller tipis; tidak ada query Eloquent atau logika bisnis langsung di Controller.
-- [ ] Service memakai Repository **interface**; binding terdaftar di `RepositoryServiceProvider`.
-- [ ] Validasi Form Request dengan pesan Bahasa Indonesia + validasi frontend.
-- [ ] Semua controller memakai `ResponseHelper`.
-- [ ] Route memakai `{uuid}` + `whereUuid`; tidak ada `Inertia::render` di file route.
-- [ ] Tidak ada `id` auto-increment di props, JSON, URL, atau form.
-- [ ] Error validasi tampil sebagai state invalid; `<form noValidate>`.
-- [ ] Daftar data memakai Data Table server-side dengan sort di-whitelist.
-- [ ] Notifikasi lewat `notify`; tidak ada `new Audio` / `toast.*` langsung.
-- [ ] Semua button async memakai `LoadingButton`.
-- [ ] Nilai awal form kosong; tidak ada data dummy.
+Gunakan checklist interaktif di bawah ini untuk memeriksa kelengkapan modul sebelum menyerahkan pekerjaan atau mengajukan Pull Request:
+
+<Checklist
+  title="Daftar Periksa Kualitas Fitur Baru"
+  items={[
+    {
+      id: 'folder-structure',
+      label: 'Struktur folder benar dan rapi',
+      detail:
+        'Tidak ada file di tempat salah (misalnya meletakkan query di luar repository atau meletakkan komponen halaman di luar Pages/).',
+    },
+    {
+      id: 'thin-controller',
+      label: 'Controller tipis (Thin Controller)',
+      detail:
+        'Tidak ada query Eloquent langsung atau percabangan logika bisnis di dalam controller.',
+    },
+    {
+      id: 'service-repo-interface',
+      label: 'Service meng-inject Repository Interface',
+      detail:
+        'Service bergantung pada interface abstrak dan binding-nya telah didaftarkan di RepositoryServiceProvider.',
+    },
+    {
+      id: 'form-request-validation',
+      label: 'Validasi Form Request + Pesan Bahasa Indonesia',
+      detail:
+        'Seluruh input divalidasi via Form Request dan pesan validasi user menggunakan Bahasa Indonesia.',
+    },
+    {
+      id: 'response-helper',
+      label: 'Semua controller memakai ResponseHelper',
+      detail:
+        'Tidak ada pemanggilan response()->json() manual atau abort(500) langsung dari controller.',
+    },
+    {
+      id: 'route-uuid',
+      label: 'Route memakai {uuid} dan constraint whereUuid',
+      detail:
+        'Tidak ada parameter {id} dan tidak ada pemanggilan Inertia::render langsung di dalam closure file route.',
+    },
+    {
+      id: 'uuid-only',
+      label: 'Tidak ada ID auto-increment di frontend',
+      detail:
+        'ID numerik internal tidak bocor ke props, JSON, URL, form hidden input, maupun key list.',
+    },
+    {
+      id: 'form-validation-ui',
+      label: 'Validasi form tampil sebagai state invalid',
+      detail:
+        'Formulir menggunakan <form noValidate> tanpa atribut HTML required/pattern bawaan browser.',
+    },
+    {
+      id: 'data-table-server-side',
+      label: 'Daftar data memakai Data Table server-side',
+      detail: 'Menerapkan pagination, sorting dengan whitelist kolom aman, dan debounced search.',
+    },
+    {
+      id: 'notify-sound',
+      label: 'Notifikasi & suara terstandar via notify helper',
+      detail:
+        'Tidak memanggil new Audio atau toast.* secara langsung. Menerapkan aturan: satu event = satu suara.',
+    },
+    {
+      id: 'loading-button',
+      label: 'Seluruh tombol async memakai LoadingButton',
+      detail:
+        'Tombol submit dan aksi asinkron menampilkan spinner dan mendisabel tombol lain saat processing.',
+    },
+    {
+      id: 'empty-initial-form',
+      label: 'Nilai awal form kosong murni',
+      detail: 'State awal form tidak diisi data dummy atau defaultValue sembarangan.',
+    },
+    {
+      id: 'no-legacy-code',
+      label: 'Bebas dari sisa kode lama',
+      detail: 'Tidak ada controller, rute, komponen, atau import usang yang tertinggal.',
+    },
+  ]}
+/>
+
+## 3. Format Laporan Akhir (Untuk AI Agent)
+
+Setiap AI agent yang menyelesaikan implementasi fitur baru diwajibkan menyajikan laporan terstruktur dengan format:
+
+1. **Asumsi** (jika ada hal yang ambigu pada kebutuhan fitur)
+2. **Daftar File:** dibuat / diubah / dihapus
+3. **Kode Lengkap / Ringkasan Implementasi**
+4. **Perintah yang Perlu Dijalankan** (misal: `php artisan migrate`, `npm install`, dst.)
+5. **Hasil Verifikasi** (bukti lolos lint, route check, dan build)
