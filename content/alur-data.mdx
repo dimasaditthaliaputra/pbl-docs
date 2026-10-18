@@ -7,12 +7,172 @@ group: Backend
 
 ## Gambaran Umum
 
-Halaman ini menguraikan siklus data secara penuh mulai dari interaksi pengguna di peramban hingga operasi data di PostgreSQL.
+Halaman ini menguraikan bagaimana data mengalir di dalam aplikasi PAGORA: mulai dari form input di peramban, melalui pipa middleware dan controller Laravel, masuk ke database PostgreSQL, hingga kembali memicu notifikasi suara dan toast di antarmuka React.
 
-## Alur Request Penuh
+## 1. Alur Request Penuh (Menyimpan Data)
 
-Alur pengiriman data form melalui Inertia useForm, validasi Form Request di Laravel, hingga FlashHandler di frontend.
+Berikut adalah siklus hidup 9 langkah eksekusi request form simpan data (menggunakan modul referensi `Komoditas`):
 
-## Pola Error dan Respon
+<Steps>
+  <Step title="1. Pengisian Form & Validasi Awal di React">
+    <p>
+      Pengguna mengisi data di <code>KomoditasForm</code>. Validasi frontend memeriksa kelengkapan data. Submit memicu <code>useForm.post(route('komoditas.store'))</code>. Inertia secara otomatis melampirkan header <code>X-Inertia</code> dan token keamanan CSRF.
+    </p>
+  </Step>
 
-Standar penanganan error validasi 422, error server 500, serta flash pesan sukses atau gagal.
+<Step title="2. Pipa Routing Laravel">
+  <p>
+    Permintaan masuk ke rute <code>komoditas.store</code> yang dilindungi oleh middleware{' '}
+    <code>auth</code>. Rute meneruskan request ke method controller yang bersangkutan.
+  </p>
+</Step>
+
+  <Step title="3. Validasi Form Request">
+    <p>
+      <code>StoreKomoditasRequest</code> memvalidasi data input. Jika validasi gagal, Laravel otomatis melakukan redirect <code>back()->withErrors($errors)</code> yang langsung memetakan error ke props <code>errors</code> di React tanpa memicu flash error global.
+    </p>
+  </Step>
+
+<Step title="4. Eksekusi Controller Tipis">
+  <p>
+    <code>KomoditasController@store</code> menerima data yang telah tervalidasi dan langsung
+    memanggil method <code>KomoditasService::store()</code> tanpa memproses logika database secara
+    langsung.
+  </p>
+</Step>
+
+<Step title="5. Pemrosesan Logika Bisnis di Service">
+  <p>
+    <code>KomoditasService</code> mengorkestrasi alur data. Jika operasi melibatkan lebih dari satu
+    tabel, service membungkus operasi dalam <code>DB::transaction()</code> untuk menjaga konsistensi
+    data.
+  </p>
+</Step>
+
+<Step title="6. Akses Data via Repository Interface">
+  <p>
+    Service memanggil <code>KomoditasRepositoryInterface</code> yang diimplementasikan oleh{' '}
+    <code>KomoditasRepository</code>. Repository mengeksekusi query Eloquent pada model{' '}
+    <code>Komoditas</code> dan menyimpan data ke tabel PostgreSQL.
+  </p>
+</Step>
+
+<Step title="7. Respons Melalui ResponseHelper">
+  <p>
+    Controller membungkus respon menggunakan{' '}
+    <code>
+      ResponseHelper::success('Data berhasil disimpan.', redirectTo: route('komoditas.index'))
+    </code>
+    , menghasilkan redirect dengan flash data <code>success</code>.
+  </p>
+</Step>
+
+<Step title="8. Share Data Inertia">
+  <p>
+    Inertia memuat halaman tujuan (<code>Master/Komoditas/Index</code>). Middleware{' '}
+    <code>HandleInertiaRequests::share()</code> otomatis menyertakan pesan flash ke dalam props
+    global Inertia.
+  </p>
+</Step>
+
+  <Step title="9. Eksekusi Notifikasi Toast & Suara">
+    <p>
+      Komponen <code>FlashHandler</code> yang terpasang di <code>DashboardLayout</code> mendeteksi flash success, lalu memanggil <code>notify.success()</code> yang memutar efek suara <code>success.mp3</code> dan menampilkan toast Sonner.
+    </p>
+  </Step>
+</Steps>
+
+## 2. Alur Menampilkan Daftar (Data Table Server-Side)
+
+Daftar data pada seluruh modul master PAGORA tidak diproses di sisi klien, melainkan dikelola langsung secara **server-side** melalui TanStack Table:
+
+<Diagram
+  type="data-flow"
+  title="Alur Data Table Server-Side"
+  caption="Siklus query parameter pencarian, pengurutan, dan paginasi dari antarmuka React menuju database"
+/>
+
+### Rincian Eksekusi Query String
+
+Alur interaksi tabel bekerja sebagai berikut:
+
+```
+Index.jsx (state: search, sort, direction, page, per_page)
+   │ router.get(route('komoditas.index'), params,
+   │            { preserveState, preserveScroll, replace, only: ['komoditas','filters'] })
+   ▼
+KomoditasController@index ← IndexKomoditasRequest (validasi query string)
+   ▼
+KomoditasService::paginate($filters)
+   ▼
+KomoditasRepository::paginate()  (whitelist sort, per_page maks 100)
+   ▼
+KomoditasResource::collection()  → props { komoditas: {data, meta, links}, filters }
+   ▼
+DataTable (manualPagination / manualSorting / manualFiltering, getRowId = row.uuid)
+```
+
+1. **State Tabel di URL:** Parameter pencarian (_search_), kolom urut (_sort_), arah urut (_direction_), nomor halaman (_page_), dan jumlah baris (_per_page_) disimpan pada query string URL.
+2. **Debounce Pencarian:** Input pencarian teks menggunakan jeda _debounce_ ±400 ms sebelum memicu request `router.get()`.
+3. **Optimasi Inertia:** Request menggunakan opsi `preserveState: true`, `preserveScroll: true`, `replace: true`, dan `only: ['komoditas', 'filters']` agar hanya payload data tabel yang diperbarui.
+4. **Keamanan Query:** Repository menerapkan _whitelist_ kolom pengurutan (contoh: `['name', 'created_at']`) dan membatasi ukuran halaman maksimal 100 baris (`min($perPage, 100)`).
+5. **Key Baris Berbasis UUID:** Konfigurasi tabel wajib menyetel `getRowId: (row) => row.uuid`.
+
+## 3. Alur Data ke Frontend (API Resource)
+
+Controller **dilarang mengirimkan objek model Eloquent mentah ke frontend**. Data yang dikirim selalu melewati **API Resource** dengan field eksplisit:
+
+<CodeBlock
+  filename="app/Http/Resources/KomoditasResource.php"
+  language="php"
+  illustration={true}
+  code={`<?php
+
+declare(strict_types=1);
+
+namespace App\\Http\\Resources;
+
+use Illuminate\\Http\\Request;
+use Illuminate\\Http\\Resources\\Json\\JsonResource;
+
+class KomoditasResource extends JsonResource
+{
+/\*\*
+_ Transform the resource into an array.
+_
+_ @return array<string, mixed>
+_/
+public function toArray(Request $request): array
+{
+return [
+'uuid' => $this->uuid,
+'name' => $this->name,
+'created_at' => $this->created_at?->toISOString(),
+// Seluruh relasi pun ditransformasikan melalui UUID, bukan ID internal
+];
+}
+}`}
+/>
+
+Manfaat penerapan API Resource eksplisit:
+
+- **Pencegahan Kebocoran Kolom Internal:** Menjamin kolom `id` auto-increment tidak pernah terkirim ke browser.
+- **Konsistensi Format Data:** Format tanggal, status enum, dan relasi diseragamkan sebelum sampai ke komponen React.
+- **Isolasi Database:** Perubahan nama kolom di skema database tidak langsung merusak properti props pada komponen antarmuka pengguna.
+
+## 4. Pola Error & Flash Notification
+
+PAGORA membedakan penanganan respon error menjadi dua kategori: **Error Validasi (422)** dan **Error Non-Validasi (400, 403, 404, 500)**:
+
+| Jenis Kejadian                              | Penanganan Backend                | Respons Antarmuka Frontend                                                                                                                                                                      |
+| ------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Error Validasi (422)**                    | `back()->withErrors($errors)`     | Kolom input ditandai invalid (`aria-invalid="true"`, border merah) + pesan error inline di bawah input. Memanggil `notify.validationFailed()` (efek suara `failure.mp3` saja, **tanpa toast**). |
+| **Error Non-Validasi (400, 403, 404, 500)** | `back()->with('error', $message)` | Ditangkap oleh `FlashHandler` di `DashboardLayout` → memanggil `notify.error($message)` (efek suara `failure.mp3` **disertai toast notifikasi**).                                               |
+| **Operasi Sukses (200, 201)**               | `->with('success', $message)`     | Ditangkap oleh `FlashHandler` di `DashboardLayout` → memanggil `notify.success($message)` (efek suara `success.mp3` **disertai toast notifikasi**).                                             |
+
+<Callout type="warning" title="Aturan Emas: Satu Event = Satu Suara">
+  Setiap interaksi pengguna hanya boleh menghasilkan maksimal <strong>satu suara</strong>. Dilarang
+  memutar suara ganda (misalnya suara dari form validasi sekaligus suara dari flash message). Semua
+  pemanggilan audio wajib melalui <code>lib/sound.js</code> dan <code>lib/notify.js</code>, tidak
+  boleh memanggil <code>new Audio()</code> secara manual di komponen.
+</Callout>

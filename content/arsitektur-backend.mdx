@@ -7,43 +7,66 @@ group: Backend
 
 ## Gambaran Umum
 
-Backend PAGORA mengombinasikan pola **Model-View-Controller (MVC)** dengan **Service Repository Pattern**. Arsitektur ini bertujuan menjaga Controller tetap tipis (_thin controller_), memusatkan logika bisnis di Service, dan memisahkan akses database di Repository.
+Backend PAGORA mengombinasikan pola **Model-View-Controller (MVC)** dengan **Service Repository Pattern**. Arsitektur ini bertujuan menjaga Controller tetap tipis (_thin controller_), memusatkan logika bisnis dan integritas transaksi di layer Service, serta memisahkan akses database melalui Repository Interface.
+
+## 1. Alur Request
+
+Alur request mengalir secara linier dari layer terluar menuju penyimpanan data, dan kembali menyajikan respon ke pengguna:
+
+```
+Route → Controller → Service → Repository (Interface) → Model → Database
+```
+
+Respon kembali melalui jalur yang sama: Model mengembalikan data ke Repository, Service memproses atau mentransformasikannya, dan Controller membungkus respon melalui `ResponseHelper` atau `Inertia::render()`.
 
 <Diagram
   type="request-flow"
-  title="Alur Request Backend PAGORA"
-  caption="Alur lengkap eksekusi request mulai dari Browser, Route, Form Request, Controller, Service, Repository Interface, hingga Database"
+  title="Diagram Alur Request Backend PAGORA"
+  caption="Alur lengkap eksekusi: Route, Form Request, Controller, Service, Repository Interface, Model, hingga PostgreSQL"
 />
 
-## Tanggung Jawab Tiap Layer
+## 2. Tanggung Jawab Tiap Layer
 
-| Layer            | Boleh                                                                                       | Dilarang                                                           |
-| ---------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| **Route**        | Memetakan URL ke method controller, memasang middleware, memberi `name()`                   | `return view()`, `Inertia::render()`, closure berisi logika        |
-| **Controller**   | Menerima request, memanggil Service, return via `ResponseHelper` / `Inertia::render`        | Query Eloquent, logika bisnis, validasi inline                     |
-| **Form Request** | Aturan validasi, pesan error Bahasa Indonesia (`messages()`), otorisasi                     | Logika bisnis                                                      |
-| **Service**      | Logika bisnis, orkestrasi beberapa repository, transaksi `DB::transaction()`, simpan berkas | Mengakses `Request`, return response HTTP, query Eloquent langsung |
-| **Repository**   | Akses data (query Eloquent), eager loading (`with()`), paginate                             | Logika bisnis, return response HTTP                                |
-| **Model**        | Relasi, `casts()`, `$fillable`, `$hidden = ['id']`, scope, accessor                         | Logika bisnis kompleks                                             |
+Setiap layer memiliki batasan dan tanggung jawab yang tegas:
+
+| Layer            | Boleh Dilakukan                                                                        | Dilarang Keras                                                           |
+| ---------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Route**        | Memetakan URL ke method controller, memasang middleware, memberi `name()`              | `return view()`, `Inertia::render()`, `Route::inertia()`, closure logika |
+| **Controller**   | Menerima request, memanggil Service, return via `ResponseHelper` / `Inertia::render`   | Query Eloquent langsung, logika bisnis, validasi inline                  |
+| **Form Request** | Aturan validasi input, pesan error Bahasa Indonesia (`messages()`), otorisasi          | Menjalankan logika bisnis atau transaksi database                        |
+| **Service**      | Logika bisnis, orkestrasi beberapa repository, `DB::transaction()`, melempar exception | Mengakses objek `Request`, return response HTTP, query Eloquent langsung |
+| **Repository**   | Akses data (query Eloquent), eager loading (`with()`), paginate, filter                | Logika bisnis, return response HTTP                                      |
+| **Model**        | Relasi, `casts()`, `$fillable`, `$hidden = ['id']`, scope query, accessor              | Logika bisnis kompleks atau manipulasi data multi-tabel                  |
 
 <Callout type="danger" title="Larangan Keras pada Layer Controller & Service">
   <ul>
     <li>
-      Dilarang menuliskan query Eloquent langsung di Controller. Seluruh akses database wajib
-      melalui Repository Interface.
+      Dilarang menuliskan query Eloquent (seperti <code>Komoditas::where(...)</code>) di dalam
+      Controller. Seluruh akses database wajib melalui Repository.
     </li>
     <li>
       Dilarang mengembalikan response HTTP atau objek <code>Request</code> dari dalam Service.
-      Service hanya mengembalikan Model, koleksi, atau melempar Exception.
+      Service murni mengembalikan entitas Model, koleksi data, atau melempar Exception.
     </li>
   </ul>
 </Callout>
 
-## Pola Kode Contoh
+## 3. Aturan Dependency
 
-Berikut adalah template pola standar yang diadopsi dari modul referensi `Komoditas`.
+Penerapan Service Repository Pattern di PAGORA mengikuti aturan ketergantungan berikut:
 
-<Tabs items={['Repository Interface', 'Service', 'Controller']}>
+- Controller meng-inject **Service** melalui constructor.
+- Service meng-inject **Repository Interface** (bukan class konkret Eloquent) melalui constructor.
+- Binding antara interface dan implementasi konkret didaftarkan di `RepositoryServiceProvider`, yang didaftarkan pada `bootstrap/providers.php`.
+- **Satu Repository untuk satu Model.**
+- **Satu Service untuk satu domain fitur** (diperbolehkan memanggil Service lain jika membutuhkan operasi lintas domain).
+- **Satu Controller per domain.** Method yang me-render halaman dipisahkan dari method yang memproses aksi (contoh: `login()` untuk halaman login vs `storeAuth()` untuk memproses submit form).
+
+## 4. Contoh Pola Standar (Modul Komoditas)
+
+Berikut adalah kode pola standar yang diadopsi dari modul referensi `Komoditas`:
+
+<Tabs items={['Repository Interface', 'Repository Eloquent', 'Service', 'Controller', 'Service Provider']}>
   <Tab value="Repository Interface">
     <CodeBlock
       filename="app/Repositories/Contracts/KomoditasRepositoryInterface.php"
@@ -75,6 +98,67 @@ public function paginate(array $filters, int $perPage = 10): LengthAwarePaginato
 
   </Tab>
 
+  <Tab value="Repository Eloquent">
+    <CodeBlock
+      filename="app/Repositories/Eloquent/KomoditasRepository.php"
+      language="php"
+      illustration={true}
+      code={`<?php
+
+declare(strict_types=1);
+
+namespace App\\Repositories\\Eloquent;
+
+use App\\Models\\Komoditas;
+use App\\Repositories\\Contracts\\KomoditasRepositoryInterface;
+use Illuminate\\Pagination\\LengthAwarePaginator;
+
+class KomoditasRepository implements KomoditasRepositoryInterface
+{
+private const SORTABLE = ['name', 'created_at']; // whitelist kolom sort
+
+    public function __construct(private readonly Komoditas $model) {}
+
+    public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator
+    {
+        $sort = in_array($filters['sort'] ?? null, self::SORTABLE, true)
+            ? $filters['sort']
+            : 'created_at';
+        $direction = ($filters['direction'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
+        return $this->model
+            ->when($filters['search'] ?? null, fn ($q, $s) => $q->where('name', 'like', "%{$s}%"))
+            ->orderBy($sort, $direction)
+            ->paginate(min($perPage, 100))
+            ->withQueryString();
+    }
+
+    public function findByUuid(string $uuid): ?Komoditas
+    {
+        return $this->model->where('uuid', $uuid)->first();
+    }
+
+    public function create(array $data): Komoditas
+    {
+        return $this->model->create($data);
+    }
+
+    public function update(Komoditas $komoditas, array $data): Komoditas
+    {
+        $komoditas->update($data);
+        return $komoditas->fresh();
+    }
+
+    public function delete(Komoditas $komoditas): void
+    {
+        $komoditas->delete();
+    }
+
+}`}
+/>
+
+  </Tab>
+
   <Tab value="Service">
     <CodeBlock
       filename="app/Services/KomoditasService.php"
@@ -89,6 +173,8 @@ namespace App\\Services;
 use App\\Models\\Komoditas;
 use App\\Repositories\\Contracts\\KomoditasRepositoryInterface;
 use Illuminate\\Database\\Eloquent\\ModelNotFoundException;
+use Illuminate\\Pagination\\LengthAwarePaginator;
+use Illuminate\\Support\\Facades\\DB;
 
 class KomoditasService
 {
@@ -96,13 +182,22 @@ public function \_\_construct(
 private readonly KomoditasRepositoryInterface $komoditas
 ) {}
 
+    public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator
+    {
+        return $this->komoditas->paginate($filters, $perPage);
+    }
+
     public function findByUuid(string $uuid): Komoditas
     {
         return $this->komoditas->findByUuid($uuid)
             ?? throw new ModelNotFoundException('Data tidak ditemukan.');
     }
 
-    // Operasi multi-tabel dibungkus DB::transaction() di layer Service
+    public function store(array $data): Komoditas
+    {
+        // Operasi yang menyentuh lebih dari satu tabel dibungkus DB::transaction() di sini
+        return DB::transaction(fn () => $this->komoditas->create($data));
+    }
 
 }`}
 />
@@ -121,9 +216,12 @@ declare(strict_types=1);
 namespace App\\Http\\Controllers;
 
 use App\\Helpers\\ResponseHelper;
+use App\\Http\\Requests\\Komoditas\\StoreKomoditasRequest;
 use App\\Http\\Resources\\KomoditasResource;
 use App\\Services\\KomoditasService;
 use Illuminate\\Database\\Eloquent\\ModelNotFoundException;
+use Illuminate\\Http\\JsonResponse;
+use Illuminate\\Http\\RedirectResponse;
 use Inertia\\Inertia;
 use Inertia\\Response;
 use Throwable;
@@ -134,7 +232,7 @@ public function \_\_construct(
 private readonly KomoditasService $komoditasService
 ) {}
 
-    public function show(string $uuid): Response
+    public function show(string $uuid): Response|JsonResponse|RedirectResponse
     {
         try {
             $komoditas = $this->komoditasService->findByUuid($uuid);
@@ -153,12 +251,208 @@ private readonly KomoditasService $komoditasService
 />
 
   </Tab>
+
+  <Tab value="Service Provider">
+    <CodeBlock
+      filename="app/Providers/RepositoryServiceProvider.php"
+      language="php"
+      illustration={true}
+      code={`<?php
+
+declare(strict_types=1);
+
+namespace App\\Providers;
+
+use App\\Repositories\\Contracts\\KomoditasRepositoryInterface;
+use App\\Repositories\\Contracts\\UserRepositoryInterface;
+use App\\Repositories\\Contracts\\VendorRepositoryInterface;
+use App\\Repositories\\Eloquent\\KomoditasRepository;
+use App\\Repositories\\Eloquent\\UserRepository;
+use App\\Repositories\\Eloquent\\VendorRepository;
+use Illuminate\\Support\\ServiceProvider;
+
+class RepositoryServiceProvider extends ServiceProvider
+{
+public function register(): void
+{
+$this->app->bind(KomoditasRepositoryInterface::class, KomoditasRepository::class);
+$this->app->bind(UserRepositoryInterface::class, UserRepository::class);
+$this->app->bind(VendorRepositoryInterface::class, VendorRepository::class);
+}
+}`}
+/>
+
+  </Tab>
 </Tabs>
 
-## Identifier Publik: UUID (Wajib)
+## 5. Standar Routing
 
-Untuk mencegah enumerasi data dan kerentanan IDOR (_Insecure Direct Object Reference_):
+Routing didefinisikan dengan pengelompokan yang rapi di `routes/web.php`:
 
-- Kolom `id` auto-increment hanya dipakai internal backend untuk relasi dan _foreign key_.
-- Tidak boleh mengekspos `id` internal ke URL, JSON, form, atribut HTML, atau props Inertia.
-- Seluruh rute menggunakan parameter `{uuid}` dengan constraint `whereUuid('uuid')`.
+<CodeBlock
+  filename="routes/web.php"
+  language="php"
+  illustration={true}
+  code={`Route::controller(KomoditasController::class)
+    ->prefix('komoditas')
+    ->name('komoditas.')
+    ->middleware('auth')
+    ->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/create', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{uuid}/edit', 'edit')->whereUuid('uuid')->name('edit');
+        Route::put('/{uuid}', 'update')->whereUuid('uuid')->name('update');
+        Route::delete('/{uuid}', 'destroy')->whereUuid('uuid')->name('destroy');
+    });`}
+/>
+
+Aturan routing:
+
+- Semua route menunjuk ke method controller dan wajib memiliki `name()`.
+- Kelompokkan menggunakan `Route::middleware(...)->group(...)` dan `Route::controller(...)->group(...)`.
+- Middleware: `guest` untuk login/register/Google OAuth; `auth` untuk logout dan dashboard terproteksi.
+- Parameter resource **wajib `{uuid}` atau `{slug}`**, dengan constraint `whereUuid('uuid')` atau `where()`. **Dilarang memakai `{id}`**.
+- **Tidak memakai implicit route model binding.** Controller menerima `string $uuid` lalu meneruskannya ke Service, menjaga konsistensi alur Controller → Service → Repository.
+- Jika route bawaan Fortify bentrok, nonaktifkan view dengan `Fortify::ignoreRoutes()` dan `'views' => false` pada `config/fortify.php`.
+
+## 6. Identifier Publik: UUID (WAJIB)
+
+Tujuan utama kebijakan ini adalah **mencegah enumerasi data dan eksploitasi IDOR** (_Insecure Direct Object Reference_):
+
+- Kolom `id` auto-increment hanya dipakai **internal backend** untuk keperluan relasi dan _foreign key join_.
+- Kolom `id` tidak boleh bocor ke frontend dalam bentuk apa pun: URL, props Inertia, JSON, atribut HTML, form input, hidden field, `key` list, maupun query string.
+- Identifier publik default adalah `uuid`, dan opsional `slug` untuk konten publik.
+- **UUID bukan pengganti otorisasi.** Policy/Gate dan pemeriksaan kepemilikan data tetap wajib diterapkan pada setiap method aksi.
+
+Contoh Migration & Model:
+
+<Tabs items={['Migration', 'Model', 'Input Relasi']}>
+  <Tab value="Migration">
+    <CodeBlock
+      filename="database/migrations/xxxx_create_komoditas_table.php"
+      language="php"
+      illustration={true}
+      code={`Schema::create('komoditas', function (Blueprint $table) {
+    $table->id();                    // Internal backend only
+    $table->uuid('uuid')->unique();  // Identifier publik
+    $table->string('name');
+    $table->timestamps();
+});`}
+    />
+  </Tab>
+
+  <Tab value="Model">
+    <CodeBlock
+      filename="app/Models/Komoditas.php"
+      language="php"
+      illustration={true}
+      code={`namespace App\\Models;
+
+use Illuminate\\Database\\Eloquent\\Concerns\\HasUuids;
+use Illuminate\\Database\\Eloquent\\Model;
+
+class Komoditas extends Model
+{
+use HasUuids;
+
+    protected $hidden = ['id'];
+
+    public function uniqueIds(): array
+    {
+        return ['uuid'];
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
+}`}
+/>
+
+  </Tab>
+
+  <Tab value="Input Relasi">
+    <CodeBlock
+      filename="app/Http/Requests/Komoditas/StoreRelasiRequest.php"
+      language="php"
+      illustration={true}
+      code={`// Input relasi dari frontend wajib memakai *_uuid
+public function rules(): array
+{
+    return [
+        'komoditas_uuid' => ['required', 'uuid', 'exists:komoditas,uuid'],
+    ];
+}
+
+// Di layer Service:
+// Menerjemahkan komoditas_uuid -> id internal via Repository sebelum disimpan`}
+/>
+
+  </Tab>
+</Tabs>
+
+## 7. Response Helper
+
+Semua controller wajib memakai `App\Helpers\ResponseHelper`. Dilarang memanggil `response()->json(..., 200)` atau `abort(500)` langsung dari controller:
+
+| Method              | Status Code | Kegunaan                                     |
+| ------------------- | ----------- | -------------------------------------------- |
+| `success()`         | 200         | Operasi berhasil (tampil data, ubah data)    |
+| `created()`         | 201         | Berhasil membuat entitas baru                |
+| `badRequest()`      | 400         | Request tidak valid / malformed              |
+| `unauthorized()`    | 401         | Pengguna belum terautentikasi                |
+| `forbidden()`       | 403         | Tidak memiliki hak akses (Policy/Gate gagal) |
+| `notFound()`        | 404         | Data tidak ditemukan                         |
+| `validationError()` | 422         | Gagal validasi input form                    |
+| `serverError()`     | 500         | Kesalahan internal server (wajib Log::error) |
+
+Format JSON seragam:
+
+<CodeBlock
+  filename="Format Response JSON"
+  language="json"
+  code={`{
+  "success": true,
+  "message": "Pesan untuk user",
+  "data": null,
+  "errors": null
+}`}
+/>
+
+Perilaku Response Helper:
+
+- Request dengan `expectsJson()`: Mengembalikan JSON seragam dengan HTTP status code terkait.
+- Request Inertia biasa:
+  - Sukses: `redirect()->intended($redirectTo)` atau `back()` dengan `->with('success', $message)`.
+  - Gagal validasi: `back()->withErrors($errors)` (masuk ke props `errors`, tanpa flash `error`).
+  - Gagal non-validasi (400/403/404/500): `back()->with('error', $message)`.
+- Flash message dibagikan secara global via `HandleInertiaRequests::share()` dan ditangani satu tempat oleh `flash-handler.jsx`.
+- `serverError()` wajib memanggil `Log::error(...)` dan hanya menampilkan pesan generik kepada pengguna demi keamanan.
+
+## 8. Validasi & Form Request
+
+- Seluruh validasi backend wajib menggunakan **Form Request** (`php artisan make:request`), dikelompokkan per domain fitur (contoh: `app/Http/Requests/Komoditas/StoreKomoditasRequest.php`).
+- Seluruh pesan error validasi wajib berbahasa Indonesia di dalam method `messages()`.
+- Validasi unik (`unique`) atau keberadaan data (`exists`) selalu divalidasi di backend.
+- Penamaan Form Request mengikuti konvensi `{Action}{Model}Request` (contoh: `StoreKomoditasRequest`, `UpdateKomoditasRequest`).
+
+## 9. Aturan Database
+
+- Perubahan skema selalu melalui file migration baru; jangan mengedit migration lama yang sudah pernah dijalankan.
+- Penamaan tabel: plural `snake_case` (contoh: `komoditas`, `vendors`).
+- Foreign key: `{model}_id` via `foreignId()->constrained()` dengan `onDelete` yang jelas.
+- Kolom yang sering dicari atau diurutkan wajib memiliki indeks.
+- Model wajib mendefinisikan `$fillable` (atau `$guarded` secara sadar) dan `casts()`.
+- Operasi database multi-tabel dibungkus `DB::transaction()` di layer **Service**.
+- Selalu cegah N+1 query dengan eager loading (`with()`) di layer Repository.
+
+## 10. Autentikasi
+
+- Login email dikelola oleh **Laravel Fortify**; login Google OAuth dikelola oleh **Laravel Socialite**.
+- **Login (baik email maupun Google) tidak boleh membuat user baru.** Jika email belum terdaftar, tampilkan error pada input atau tombol login.
+- Register (termasuk registrasi vendor) adalah satu-satunya jalur pendaftaran akun baru.
+- Setelah login: panggil `session()->regenerate()`. Saat logout: panggil `invalidate()` session dan `regenerateToken()`.
+- Password selalu di-hash. Dilarang mencatat password atau kredensial rahasia ke dalam log file.
+- Seluruh flow autentikasi dikelola oleh satu controller terpusat: `AuthController.php`.

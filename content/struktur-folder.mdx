@@ -7,18 +7,37 @@ group: Pengantar
 
 ## Gambaran Umum
 
-Proyek PAGORA adalah monolit yang menggabungkan backend Laravel dan frontend React dalam satu repositori. Halaman ini menjelaskan tata letak berkas di kedua sisi.
+PAGORA menggabungkan backend Laravel dan frontend React dalam satu direktori kerja tunggal (_single repository monolith_). Halaman ini menjelaskan tata letak direktori, tanggung jawab tiap folder, dan konvensi penamaan berkas aktual yang berlaku pada proyek.
 
-<Callout type="warning" title="Perbedaan Konvensi Folder">
-  Dokumen <code>RULES.md</code> awal memakai contoh <code>pages/</code> dan <code>.tsx</code>. Namun
-  proyek aktual menggunakan huruf kapital di awal (<code>Pages/</code>, <code>Layouts/</code>,{' '}
-  <code>Components/</code>) serta berkas JavaScript <code>.jsx</code>. Selalu ikuti struktur aktual
-  proyek yang ada!
+<Callout type="warning" title="Penting: Perbedaan dengan RULES.md">
+  Dokumen <code>RULES.md</code> awal memakai contoh <code>pages/</code>, <code>components/</code>,
+  dan ekstensi <code>.tsx</code> (huruf kecil / TypeScript). Namun{' '}
+  <strong>
+    proyek aktual PAGORA menggunakan folder Pages/, Layouts/, Components/ (huruf kapital di awal)
+    dan berkas JavaScript berekstensi .jsx
+  </strong>
+  .
+  <br />
+  <strong>Selalu ikuti struktur dan konvensi penamaan aktual proyek</strong>, jangan mengubah
+  menjadi TypeScript atau mengganti kapitalisasi folder proyek.
 </Callout>
 
-## Backend (app/)
+## Konvensi Penamaan Berkas
 
-Backend mengikuti arsitektur MVC + Service Repository. Seluruh logika query dibatasi di Repository, logika bisnis di Service, dan controller tetap tipis.
+Konvensi penamaan yang berlaku di proyek:
+
+- **Halaman, Layout, dan Komponen Fitur:** Menggunakan `PascalCase.jsx` (contoh: `DashboardLayout.jsx`, `AppSidebar.jsx`, `KomoditasForm.jsx`).
+- **Komponen Generik & Helper:** Menggunakan `kebab-case.jsx` / `.js` (contoh: `file-dropzone.jsx`, `loading-button.jsx`, `flash-handler.jsx`, `notify.js`).
+- **Halaman Modul Master:** Dikelompokkan rapi dalam `Pages/Master/<Modul>/` yang terdiri dari:
+  - `Index.jsx` — Halaman daftar data dengan TanStack Table
+  - `Create.jsx` — Halaman form tambah data
+  - `Edit.jsx` — Halaman form ubah data
+  - `<Modul>Form.jsx` — Komponen form reusable (dipakai bersama oleh Create & Edit)
+  - `columns.jsx` — Definisi kolom TanStack Table
+
+## 1. Backend (`app/`)
+
+Struktur folder backend memisahkan tugas sesuai prinsip _Separation of Concerns_ (SoC) dan _Single Responsibility Principle_ (SRP):
 
 <FileTree>
   {`app/
@@ -26,10 +45,10 @@ Backend mengikuti arsitektur MVC + Service Repository. Seluruh logika query diba
 │   └── ResponseHelper.php             # Format response seragam (JSON & Inertia)
 ├── Http/
 │   ├── Controllers/                   # Controller tipis (Thin Controller)
-│   │   ├── AuthController.php
-│   │   ├── KomoditasController.php
-│   │   ├── VendorRegistrationController.php
-│   │   └── DashboardController.php
+│   │   ├── AuthController.php         # Handler autentikasi email & Google OAuth
+│   │   ├── KomoditasController.php    # CRUD komoditas (modul referensi)
+│   │   ├── VendorRegistrationController.php # Pendaftaran akun vendor
+│   │   └── DashboardController.php    # Halaman utama dashboard
 │   ├── Requests/                      # Validasi & otorisasi input per domain
 │   │   ├── Auth/
 │   │   │   ├── LoginRequest.php
@@ -37,64 +56,92 @@ Backend mengikuti arsitektur MVC + Service Repository. Seluruh logika query diba
 │   │   └── Komoditas/
 │   │       ├── StoreKomoditasRequest.php
 │   │       └── UpdateKomoditasRequest.php
-│   └── Resources/                     # Transformasi output tanpa id publik
-│       └── KomoditasResource.php
-├── Models/                            # Definisi tabel, relasi, cast, UUID
+│   └── Resources/                     # Transformasi output (field eksplisit, tanpa id)
+│       └── KomoditasResource.php      # Resource representasi data Komoditas
+├── Models/                            # Tabel database, relasi, cast, scope, UUID
 │   ├── User.php
 │   ├── Vendor.php
 │   └── Komoditas.php
 ├── Providers/
-│   └── RepositoryServiceProvider.php  # Binding Interface ke Implementasi
+│   └── RepositoryServiceProvider.php  # Binding Interface -> Implementasi query
 ├── Repositories/
-│   ├── Contracts/                     # Interface kontrak query
+│   ├── Contracts/                     # Interface kontrak query database
 │   │   ├── UserRepositoryInterface.php
 │   │   ├── VendorRepositoryInterface.php
 │   │   └── KomoditasRepositoryInterface.php
-│   └── Eloquent/                      # Implementasi query Eloquent
+│   └── Eloquent/                      # Implementasi query konkrit Eloquent
 │       ├── UserRepository.php
 │       ├── VendorRepository.php
 │       └── KomoditasRepository.php
-└── Services/                          # Logika bisnis & orkestrasi transaksi
+└── Services/                          # Logika bisnis, transaksi, & orkestrasi
     ├── AuthService.php
     ├── KomoditasService.php
     └── VendorRegistrationService.php`}
 </FileTree>
 
-## Frontend (resources/js/)
+### Penjelasan Folder Backend
 
-Frontend dibangun menggunakan Inertia.js dan React dengan memanfaatkan komponen shadcn/ui dan Tailwind CSS.
+- **`Helpers/`**: Berisi `ResponseHelper.php` yang mengatur keseragaman struktur JSON response untuk endpoint API maupun _flash response_ untuk Inertia.
+- **`Http/Controllers/`**: Controller dibuat sangat tipis. Tidak boleh berisi query Eloquent langsung atau logika bisnis bercabang.
+- **`Http/Requests/`**: Mengisolasi aturan validasi input form dan pesan error berbahasa Indonesia per domain fitur.
+- **`Http/Resources/`**: Berfungsi mentransformasikan data sebelum diserahkan ke frontend. Menjamin kolom internal `id` tidak pernah diekspos ke publik.
+- **`Models/`**: Definisi entitas tabel PostgreSQL, relasi antar-tabel, mutator/accessor, dan konfigurasi UUID.
+- **`Repositories/`**: Memisahkan antarmuka (`Contracts/`) dari implementasi konkret (`Eloquent/`). Menjamin controller dan service tidak terikat langsung pada detail query database.
+- **`Services/`**: Rumah utama untuk seluruh logika bisnis dan operasi transaksi database (`DB::transaction()`).
+
+<Callout type="info" title="Catatan Http/Resources/">
+  Folder <code>Http/Resources/</code> saat ini baru memuat <code>KomoditasResource.php</code>.
+  Sesuai standar kode proyek, data yang dikirim ke frontend wajib melalui API Resource dengan field
+  eksplisit. Setiap modul baru wajib membuat Resource-nya sendiri (contoh:{' '}
+  <code>VendorResource.php</code>).
+</Callout>
+
+## 2. Frontend (`resources/js/`)
+
+Struktur folder frontend menampung seluruh berkas logika tampilan, komponen antarmuka, dan helper:
 
 <FileTree>
   {`resources/js/
-├── app.jsx                       # Entry point inisialisasi Inertia & progress
+├── app.jsx                       # Entry point: inisialisasi Inertia & progress bar
 ├── Layouts/
 │   └── DashboardLayout.jsx       # Shell dashboard (Sidebar, Header, FlashHandler)
-├── Pages/                        # Halaman yang di-render Inertia
-│   ├── Home.jsx                  # Landing page publik
+├── Pages/                        # Halaman yang di-render oleh Inertia::render()
+│   ├── Home.jsx                  # Halaman landing page publik
 │   ├── Dashboard.jsx             # Beranda dashboard pengguna
-│   ├── Auth/
-│   │   ├── Login.jsx
-│   │   ├── Register.jsx
-│   │   └── RegisterVendor.jsx
-│   └── Master/
-│       └── Komoditas/
-│           ├── Index.jsx         # Daftar data dengan DataTable
-│           ├── Create.jsx        # Halaman form penambahan
-│           ├── Edit.jsx          # Halaman form pengubahan
+│   ├── Auth/                     # Autentikasi dan registrasi
+│   │   ├── Login.jsx             # Halaman login email / Google
+│   │   ├── Register.jsx          # Halaman registrasi standar
+│   │   └── RegisterVendor.jsx    # Halaman pendaftaran khusus vendor
+│   └── Master/                   # Manajemen data master
+│       └── Komoditas/            # Modul referensi CRUD Komoditas
+│           ├── Index.jsx         # Halaman tabel data TanStack
+│           ├── Create.jsx        # Halaman form tambah
+│           ├── Edit.jsx          # Halaman form edit
 │           ├── KomoditasForm.jsx # Form reusable Create & Edit
-│           └── columns.jsx       # Definisi kolom TanStack Table
-├── Components/                   # Komponen reusable antarmuka
-│   ├── AppSidebar.jsx
-│   ├── SidebarLink.jsx
-│   ├── Navbar.jsx
-│   ├── file-dropzone.jsx         # Unggah berkas react-dropzone
+│           └── columns.jsx       # Konfigurasi kolom TanStack Table
+├── Components/                   # Komponen reusable antarmuka pengguna
+│   ├── AppSidebar.jsx            # Komponen navigasi sidebar dashboard
+│   ├── SidebarLink.jsx           # Tautan navigasi sidebar dengan state aktif
+│   ├── Navbar.jsx                # Bar navigasi atas dashboard
+│   ├── file-dropzone.jsx         # Upload dokumen berbasis react-dropzone
 │   ├── combobox.jsx              # Searchable select (Popover + Command)
-│   ├── loading-button.jsx        # Tombol aksi async dengan spinner
-│   ├── flash-handler.jsx         # Pemutar suara & toast Sonner
-│   ├── data-table/               # Tabel generik TanStack
-│   └── ui/                       # Primitive shadcn (button, dialog, input)
-└── lib/
+│   ├── loading-button.jsx        # Tombol aksi async dengan spinner loading
+│   ├── flash-handler.jsx         # Penangan toast & pemutar suara otomatis
+│   ├── data-table/               # Tabel generik TanStack server-side
+│   │   ├── data-table.jsx
+│   │   ├── data-table-pagination.jsx
+│   │   └── data-table-view-options.jsx
+│   └── ui/                       # Primitive shadcn (button, dialog, input, dll.)
+└── lib/                          # Pustaka helper pendukung
     ├── utils.js                  # Helper cn() (clsx + tailwind-merge)
-    ├── notify.js                 # Wrapper notifikasi toast & SFX
-    └── sound.js                  # Audio player (success.mp3 & failure.mp3)`}
+    ├── notify.js                 # Wrapper notifikasi toast Sonner + SFX
+    └── sound.js                  # Pemutar berkas audio (success.mp3 & failure.mp3)`}
 </FileTree>
+
+### Komponen Reusable Inti Frontend
+
+- **`data-table/`**: Pustaka tabel generik yang mengintegrasikan TanStack Table dengan paginasi, pengurutan kolom, dan pencarian server-side.
+- **`combobox.jsx`**: Komponen select dengan fitur pencarian teks, mendukung opsi statis maupun _async search_ ke endpoint JSON.
+- **`file-dropzone.jsx`**: Penanganan upload berkas dengan drag-and-drop, validasi ukuran/tipe berkas, dan pratinjau dokumen.
+- **`loading-button.jsx`**: Tombol aksi yang secara otomatis menampilkan spinner dan mendisabel interaksi selama proses async / processing.
+- **`flash-handler.jsx`**: Komponen pengamat flash message yang dipasang di `DashboardLayout.jsx` untuk memutar suara dan memunculkan toast notifikasi secara seragam.
