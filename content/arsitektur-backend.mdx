@@ -1,8 +1,18 @@
 ---
-title: arsitektur-backend
-description: Konten halaman ini akan diisi pada sprint berikutnya
-order: 0
-group: Akan diisi
+title: Arsitektur Backend
+description: MVC + Service Repository Pattern pada PAGORA
+order: 3
+group: Backend
 ---
 
-Konten halaman ini akan diisi pada sprint berikutnya.
+## Gambaran Umum
+
+Halaman ini menguraikan arsitektur backend PAGORA yang menerapkan kombinasi MVC dan Service Repository Pattern.
+
+## Alur Request
+
+Alur request mengalir dari Route menuju Controller, Service, Repository Interface, hingga Model dan Database.
+
+## Tanggung Jawab Layer
+
+Masing-masing layer memiliki tugas terpisah: Controller tipis, Service menangani transaksi dan logika bisnis, dan Repository menangani akses data.
